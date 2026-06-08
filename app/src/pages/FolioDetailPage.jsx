@@ -1,17 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useLoteStore } from '../store/useLoteStore'
-import AlertBanner from '../components/AlertBanner'
 
 /**
  * Página de detalle del folio
- * Muestra resumen + campo para ingresar cantidad física
- * Al completar: navega a escaneo de cajas
+ * Muestra composición del pallet desde la planilla Excel.
+ * No pide conteo manual: el totalDeclarado es el dato oficial.
+ * Un toque en "Iniciar Escaneo" para comenzar.
  */
 export default function FolioDetailPage() {
   const navigate = useNavigate()
   const { folioId } = useParams()
-  const [cantidadIngresada, setCantidadIngresada] = useState('')
 
   const obtenerFolioActual = useLoteStore(state => state.obtenerFolioActual)
   const establecerCantidadFisica = useLoteStore(state => state.establecerCantidadFisica)
@@ -20,30 +19,15 @@ export default function FolioDetailPage() {
   const folio = obtenerFolioActual()
 
   useEffect(() => {
-    // Validar que existe el folio
     if (!folio) {
-      navigate('/folios')
+      navigate('/')
     }
   }, [folio, navigate])
 
-  const hayDiferencia = () => {
-    const cantidad = parseInt(cantidadIngresada) || 0
-    return cantidad !== folio.totalDeclarado
-  }
-
-  const manejarIniciarRevision = () => {
-    const cantidad = parseInt(cantidadIngresada)
-    
-    if (!cantidadIngresada.trim()) {
-      alert('Por favor ingresa la cantidad de cajas')
-      return
-    }
-
-    // Registrar cantidad física
-    establecerCantidadFisica(cantidad)
+  const manejarIniciarEscaneo = () => {
+    // Usar totalDeclarado como la cantidad de referencia
+    establecerCantidadFisica(folio.totalDeclarado)
     marcarRevisionEnProgreso()
-
-    // Navegar a escaneo
     navigate(`/folio/${folioId}/scan`)
   }
 
@@ -59,115 +43,71 @@ export default function FolioDetailPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <div className="bg-blue-600 text-white p-4">
-        <h1 className="text-2xl font-bold">Folio: {folio.folio}</h1>
+        <button
+          onClick={() => navigate('/')}
+          className="text-blue-200 text-sm mb-1"
+        >
+          ← Volver
+        </button>
+        <h1 className="text-xl font-bold">Folio: {folio.folio}</h1>
       </div>
 
       {/* Contenido */}
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="max-w-md mx-auto space-y-6">
-          {/* Resumen del folio */}
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-            <h2 className="text-lg font-semibold mb-4 text-gray-900">
-              Resumen del lote
-            </h2>
+        <div className="max-w-md mx-auto space-y-4">
 
-            <div className="space-y-3">
-              {/* Total Declarado */}
-              <div className="flex justify-between">
-                <span className="text-gray-600">Total Declarado:</span>
-                <span className="font-semibold text-gray-900">
-                  {folio.totalDeclarado} cajas
-                </span>
-              </div>
+          {/* Total declarado - Dato principal */}
+          <div className="bg-blue-600 text-white p-5 rounded-xl text-center shadow">
+            <p className="text-sm text-blue-200 mb-1">Total declarado en planilla</p>
+            <p className="text-5xl font-bold">{folio.totalDeclarado}</p>
+            <p className="text-sm text-blue-200 mt-1">cajas</p>
+          </div>
 
-              {/* Cantidad de líneas */}
-              <div className="flex justify-between">
-                <span className="text-gray-600">Productores (CSG):</span>
-                <span className="font-semibold text-gray-900">
-                  {folio.lineas.length}
-                </span>
-              </div>
-
-              {/* Listado de CSG (resumido) */}
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <p className="text-sm text-gray-600 mb-2">Productores:</p>
-                <div className="space-y-1 text-xs text-gray-700">
-                  {folio.lineas.map((linea, idx) => (
-                    <div key={idx} className="flex justify-between">
-                      <span>{linea.csg}</span>
-                      <span className="text-gray-500">{linea.cajasDeclaradas} cajas</span>
-                    </div>
-                  ))}
+          {/* Composición por productor (CSG) */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+            <div className="p-4 border-b border-gray-100">
+              <h2 className="font-semibold text-gray-900">
+                Composición del pallet ({folio.lineas.length} productores)
+              </h2>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {folio.lineas.map((linea, idx) => (
+                <div key={idx} className="p-4 flex justify-between items-start">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900 text-sm">{linea.csg}</p>
+                    {linea.especie && (
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {linea.especie} {linea.varComercial ? `· ${linea.varComercial}` : ''}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right ml-3 flex-shrink-0">
+                    <span className="text-lg font-bold text-blue-700">{linea.cajasDeclaradas}</span>
+                    <span className="text-xs text-gray-400 ml-1">cajas</span>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
           </div>
 
-          {/* Input de cantidad física */}
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-            <label className="block mb-3">
-              <span className="text-lg font-semibold text-gray-900 block mb-2">
-                ¿Cuántas cajas tiene físicamente el pallet?
-              </span>
-              <input
-                type="number"
-                min="0"
-                value={cantidadIngresada}
-                onChange={(e) => setCantidadIngresada(e.target.value)}
-                placeholder="0"
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg
-                           text-2xl font-bold text-center text-gray-900
-                           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                style={{ minHeight: '56px' }}
-              />
-            </label>
-          </div>
-
-          {/* Alerta si hay diferencia */}
-          {cantidadIngresada && hayDiferencia() && (
-            <AlertBanner
-              tipo="warning"
-              mensaje={`Diferencia detectada: ${Math.abs(parseInt(cantidadIngresada) - folio.totalDeclarado)} cajas`}
-              visible={true}
-            />
-          )}
-
           {/* Info */}
-          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-            <p className="text-sm text-blue-800">
-              ℹ️ Conteo de cajas físicas antes de iniciar el escaneo.
-            </p>
+          <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 text-sm text-amber-800">
+            <p>⚡ Escanea cada caja del pallet. El sistema comparará en tiempo real con esta planilla.</p>
           </div>
+
         </div>
       </div>
 
-      {/* Botones de acción */}
-      <div className="p-4 bg-white border-t border-gray-200 space-y-3">
+      {/* Botón iniciar */}
+      <div className="p-4 bg-white border-t border-gray-200">
         <button
-          onClick={manejarIniciarRevision}
-          disabled={!cantidadIngresada.trim()}
-          className={`
-            w-full py-3 px-4 rounded-lg font-semibold text-base
-            transition-all duration-200 active:scale-95
-            ${
-              cantidadIngresada.trim()
-                ? 'bg-success text-white hover:bg-green-600'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }
-          `}
-          style={{ minHeight: '48px' }}
+          onClick={manejarIniciarEscaneo}
+          className="w-full py-4 bg-green-600 text-white rounded-xl
+                     font-bold text-lg hover:bg-green-700
+                     transition-all duration-200 active:scale-95 shadow-md"
+          style={{ minHeight: '56px' }}
         >
-          ▶ Iniciar revisión
-        </button>
-
-        <button
-          onClick={() => navigate('/folios')}
-          className="w-full py-2 px-4 bg-gray-200 text-gray-800 rounded-lg
-                     font-semibold text-base hover:bg-gray-300
-                     transition-all duration-200 active:scale-95"
-          style={{ minHeight: '44px' }}
-        >
-          ← Volver
+          🔫 Iniciar Escaneo de Cajas
         </button>
       </div>
     </div>

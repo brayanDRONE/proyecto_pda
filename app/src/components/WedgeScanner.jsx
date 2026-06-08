@@ -1,170 +1,122 @@
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useCallback } from 'react'
 
 /**
  * Componente de escáner láser en modo wedge (HID)
- * - Input invisible que mantiene el foco
- * - Escucha Enter para procesar contenido escaneado
- * - Manejo automático de foco + botón visible para reactivar
- * - Feedback visual post-escaneo
+ * Usa listener a nivel document para funcionar aunque se pierda el foco.
+ * Compatible con Zebra RD40T y similares.
  */
-export default function WedgeScanner({ onScanComplete, isActive = true }) {
-  const inputRef = useRef(null)
+export default function WedgeScanner({ onScanComplete, isActive = true, placeholder = 'Escanear...' }) {
   const bufferRef = useRef('')
-  const [feedbackVisual, setFeedbackVisual] = useState(null) // 'success', 'error', null
+  const timerRef = useRef(null)
+  const [feedbackVisual, setFeedbackVisual] = useState(null) // 'success' | 'error' | null
   const [ultimoEscaneo, setUltimoEscaneo] = useState('')
 
-  // Enfoque inicial del input al montar el componente
-  useEffect(() => {
-    if (isActive && inputRef.current) {
-      inputRef.current.focus()
+  const mostrarFeedback = useCallback((tipo) => {
+    setFeedbackVisual(tipo)
+    if (navigator.vibrate) {
+      if (tipo === 'success') navigator.vibrate(80)
+      else if (tipo === 'error') navigator.vibrate([80, 40, 80])
     }
-  }, [isActive])
+    setTimeout(() => setFeedbackVisual(null), 700)
+  }, [])
 
-  // Reenfoque si se pierde el foco (pero mantener un retraso para evitar loops)
-  const manejarBlur = () => {
-    if (isActive) {
-      // Pequeño delay para evitar comportamientos raros
-      setTimeout(() => {
-        if (inputRef.current && document.activeElement !== inputRef.current) {
-          inputRef.current.focus()
-        }
-      }, 100)
-    }
-  }
-
-  // Procesar entrada del escáner
-  const manejarKeyDown = (e) => {
-    if (!isActive) return
-
-    // Detectar Enter (fin del escaneo)
-    if (e.key === 'Enter') {
-      e.preventDefault()
-
-      const contenido = bufferRef.current.trim()
-      
-      if (contenido.length > 0) {
-        // Procesar el contenido escaneado
-        try {
-          procesarEscaneo(contenido)
-        } catch (error) {
-          console.error('Error procesando escaneo:', error)
-          mostrarFeedback('error')
-        }
-      }
-
-      // Limpiar buffer y mantener foco
-      bufferRef.current = ''
-      setUltimoEscaneo(contenido)
-      inputRef.current.value = ''
-      inputRef.current.focus()
-      return
-    }
-
-    // Acumular caracteres en el buffer (excluyendo teclas especiales)
-    if (e.key.length === 1) {
-      bufferRef.current += e.key
-    }
-  }
-
-  // Procesar contenido escaneado
-  const procesarEscaneo = (contenido) => {
-    // Llamar callback del padre con el contenido
+  const procesarEscaneo = useCallback((contenido) => {
+    const valor = contenido.trim()
+    if (!valor || valor.length < 2) return
+    setUltimoEscaneo(valor)
     if (onScanComplete) {
-      const resultado = onScanComplete(contenido)
-      
-      // Mostrar feedback visual
-      if (resultado === true) {
-        mostrarFeedback('success')
-      } else if (resultado === false) {
+      try {
+        const resultado = onScanComplete(valor)
+        if (resultado === true) mostrarFeedback('success')
+        else if (resultado === false) mostrarFeedback('error')
+        // si no retorna nada, no mostrar feedback (el padre lo maneja)
+      } catch (err) {
+        console.error('[WedgeScanner] Error en callback:', err)
         mostrarFeedback('error')
       }
     }
-  }
+  }, [onScanComplete, mostrarFeedback])
 
-  // Mostrar feedback visual breve
-  const mostrarFeedback = (tipo) => {
-    setFeedbackVisual(tipo)
-    
-    // Vibración si está disponible
-    if (navigator.vibrate) {
-      if (tipo === 'success') {
-        navigator.vibrate(100)
-      } else if (tipo === 'error') {
-        navigator.vibrate([100, 50, 100])
+  // Listener a nivel document: funciona aunque el input oculto pierda el foco
+  useEffect(() => {
+    if (!isActive) return
+
+    const handleKeyDown = (e) => {
+      // Ignorar si el usuario está escribiendo en un input/textarea REAL (que no sea nuestro scanner oculto)
+      const tag = document.activeElement?.tagName
+      const tipo = document.activeElement?.type
+      const esInputReal = (tag === 'INPUT' || tag === 'TEXTAREA') &&
+                          tipo !== 'hidden' &&
+                          !document.activeElement?.dataset?.wedge
+
+      if (esInputReal) return
+
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        const contenido = bufferRef.current
+        bufferRef.current = ''
+        // Cancelar el timer de timeout
+        if (timerRef.current) clearTimeout(timerRef.current)
+        procesarEscaneo(contenido)
+        return
+      }
+
+      // Acumular caracteres (el scanner los envía muy rápido)
+      if (e.key.length === 1) {
+        bufferRef.current += e.key
+
+        // Timeout: si pasan 200ms sin más caracteres ni Enter, procesar igual
+        // (algunos scanners no envían Enter al final)
+        if (timerRef.current) clearTimeout(timerRef.current)
+        timerRef.current = setTimeout(() => {
+          const contenido = bufferRef.current
+          if (contenido.length > 3) {
+            bufferRef.current = ''
+            procesarEscaneo(contenido)
+          } else {
+            bufferRef.current = ''
+          }
+        }, 200)
       }
     }
 
-    // Limpiar feedback después de 500ms
-    setTimeout(() => {
-      setFeedbackVisual(null)
-    }, 500)
-  }
-
-  // Botón visible para reactivar escáner
-  const reactivarEscanerManual = () => {
-    bufferRef.current = ''
-    inputRef.current.value = ''
-    inputRef.current.focus()
-  }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [isActive, procesarEscaneo])
 
   return (
-    <div className="relative">
-      {/* Input invisible pero funcional - siempre mantiene el foco */}
-      <input
-        ref={inputRef}
-        type="text"
-        className="absolute opacity-0 w-0 h-0 pointer-events-none"
-        onKeyDown={manejarKeyDown}
-        onBlur={manejarBlur}
-        onChange={() => {}} // Controlado por el buffer
-        autoFocus
-        tabIndex={-1}
-        aria-hidden="true"
-      />
-
-      {/* Botón visible grande para reactivar escáner si se pierde foco */}
-      <button
-        onClick={reactivarEscanerManual}
-        className={`
-          w-full py-3 px-4 rounded-lg font-semibold text-base
-          transition-all duration-300 active:scale-95
-          ${
-            isActive
-              ? 'bg-blue-600 text-white hover:bg-blue-700'
-              : 'bg-gray-400 text-gray-600 cursor-not-allowed'
-          }
-          ${feedbackVisual === 'success' ? 'bg-success text-white ring-2 ring-success ring-opacity-50' : ''}
-          ${feedbackVisual === 'error' ? 'bg-error text-white ring-2 ring-error ring-opacity-50' : ''}
-        `}
-        disabled={!isActive}
-        style={{
-          minHeight: '48px',
-          touchAction: 'manipulation',
-        }}
-      >
+    <div
+      className={`
+        w-full rounded-xl border-2 p-4 text-center font-semibold text-base
+        transition-all duration-300 select-none
+        ${!isActive
+          ? 'border-gray-300 bg-gray-100 text-gray-400'
+          : feedbackVisual === 'success'
+            ? 'border-green-500 bg-green-50 text-green-800'
+            : feedbackVisual === 'error'
+              ? 'border-red-500 bg-red-50 text-red-800'
+              : 'border-blue-400 bg-blue-50 text-blue-700 animate-pulse'
+        }
+      `}
+      style={{ minHeight: '56px', touchAction: 'manipulation' }}
+    >
+      {feedbackVisual === 'success' ? (
         <div className="flex items-center justify-center gap-2">
-          <span className="text-xl">📱</span>
-          <span>Toca para reactivar escáner</span>
+          <span className="text-2xl">✓</span>
+          <span>Leído correctamente</span>
         </div>
-      </button>
-
-      {/* Indicador de feedback visual */}
-      {feedbackVisual && (
-        <div
-          className={`
-            absolute inset-0 rounded-lg pointer-events-none
-            transition-opacity duration-300
-            ${feedbackVisual === 'success' ? 'bg-success bg-opacity-30' : 'bg-error bg-opacity-30'}
-          `}
-          style={{ opacity: 0.7 }}
-        />
-      )}
-
-      {/* Debug: mostrar último escaneo (remover en producción) */}
-      {ultimoEscaneo && (
-        <div className="mt-2 p-2 bg-gray-100 rounded text-xs text-gray-600 break-all">
-          Última lectura: {ultimoEscaneo.substring(0, 100)}
-          {ultimoEscaneo.length > 100 ? '...' : ''}
+      ) : feedbackVisual === 'error' ? (
+        <div className="flex items-center justify-center gap-2">
+          <span className="text-2xl">✗</span>
+          <span>Error de lectura</span>
+        </div>
+      ) : (
+        <div className="flex items-center justify-center gap-2">
+          <span className="text-xl">🔫</span>
+          <span>{isActive ? placeholder : 'Escáner inactivo'}</span>
         </div>
       )}
     </div>
