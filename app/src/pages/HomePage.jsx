@@ -133,7 +133,7 @@ export default function HomePage() {
                 <p className="text-sm text-blue-800 font-medium mb-3">
                   🔫 Escanea el folio para comenzar
                 </p>
-                <WedgeScanner onData={procesarEscaneoFolio} />
+                <WedgeScanner onScanComplete={procesarEscaneoFolio} />
               </div>
             </div>
 
