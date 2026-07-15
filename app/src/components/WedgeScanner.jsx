@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
+import { beepSuccess, beepError, beepWarning } from '../utils/audioAlerts'
 
 /**
  * WedgeScanner - Lector láser HID para Zebra RD40T + Chrome Android
@@ -26,13 +27,17 @@ export default function WedgeScanner({
   const [feedbackVisual, setFeedbackVisual] = useState(null)
   const [tienesFoco, setTienesFoco] = useState(false)
 
-  // ── Feedback visual + vibración ─────────────────────────────────────────
+  // ── Feedback visual + vibración + sonido ────────────────────────────────
   const mostrarFeedback = useCallback((tipo) => {
     setFeedbackVisual(tipo)
     if (navigator.vibrate) {
       if (tipo === 'success') navigator.vibrate(80)
       else if (tipo === 'error') navigator.vibrate([80, 40, 80])
+      else if (tipo === 'warning') navigator.vibrate([60, 30, 60])
     }
+    if (tipo === 'success') beepSuccess()
+    else if (tipo === 'warning') beepWarning()
+    else if (tipo === 'error') beepError()
     setTimeout(() => setFeedbackVisual(null), 900)
   }, [])
 
@@ -47,6 +52,7 @@ export default function WedgeScanner({
     try {
       const res = callback(valor)
       if (res === true) mostrarFeedback('success')
+      else if (res === 'warning') mostrarFeedback('warning')
       else if (res === false) mostrarFeedback('error')
     } catch (err) {
       console.error('[WedgeScanner]', err)

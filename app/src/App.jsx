@@ -4,6 +4,7 @@ import FolioListPage from './pages/FolioListPage'
 import FolioDetailPage from './pages/FolioDetailPage'
 import ScanPage from './pages/ScanPage'
 import ReportPage from './pages/ReportPage'
+import DebugScannerPage from './pages/DebugScannerPage'
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <Route path="/folio/:folioId/detail" element={<FolioDetailPage />} />
         <Route path="/folio/:folioId/scan" element={<ScanPage />} />
         <Route path="/report" element={<ReportPage />} />
+        <Route path="/debug-scanner" element={<DebugScannerPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>

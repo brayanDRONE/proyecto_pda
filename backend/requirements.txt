@@ -1,0 +1,8 @@
+Django==4.2.*
+djangorestframework==3.15.*
+mongoengine==0.29.*
+django-cors-headers==4.4.*
+python-dotenv==1.0.*
+gunicorn==22.*
+Pillow==10.*
+openpyxl==3.1.*

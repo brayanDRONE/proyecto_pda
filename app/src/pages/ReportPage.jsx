@@ -1,24 +1,24 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLoteStore } from '../store/useLoteStore'
 import * as XLSX from 'xlsx'
+import { exportarExcelConObservaciones } from '../utils/reportGenerator'
 
-/**
- * Página de reporte consolidado
- * Muestra resumen de TODOS los folios revisados + opción de descargar Excel
- */
 export default function ReportPage() {
   const navigate = useNavigate()
+  const [exportando, setExportando] = useState(false)
 
   const obtenerReporteConsolidado = useLoteStore(state => state.obtenerReporteConsolidado)
+  const foliosRevisados = useLoteStore(state => state.foliosRevisados)
+  const archivoOriginal = useLoteStore(state => state.archivoOriginal)
+  const lotes = useLoteStore(state => state.lotes)
   const resetear = useLoteStore(state => state.resetear)
 
   const reporte = obtenerReporteConsolidado()
-
   const tieneConDiferencias = reporte.totalEscaneado !== reporte.totalDeclarado
 
   const manejarDescargarExcel = () => {
     try {
-      // Generar Excel consolidado con todos los folios
       const ws = XLSX.utils.aoa_to_sheet([
         ['REPORTE CONSOLIDADO DE INSPECCIÓN SAG'],
         [`Fecha: ${new Date().toLocaleDateString('es-CL')}`],
@@ -34,17 +34,12 @@ export default function ReportPage() {
         ['DETALLE POR FOLIO'],
         ['Folio', 'Decl.', 'Scan.', 'Diferencia', 'CSGs Diff.'],
         ...reporte.folios.map(f => [
-          f.folio,
-          f.totalDeclarado,
-          f.totalEscaneado,
-          f.diferencia,
-          f.csgsConDiferencias,
+          f.folio, f.totalDeclarado, f.totalEscaneado, f.diferencia, f.csgsConDiferencias,
         ]),
         [],
         ['TIPOS DE ANOMALÍAS'],
         ...Object.entries(reporte.tiposAnomalia || {}).map(([tipo, count]) => [tipo, count]),
       ])
-
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, 'Reporte Consolidado')
       XLSX.writeFile(wb, `Reporte_Consolidado_${new Date().toLocaleDateString('es-CL').replace(/\//g, '-')}.xlsx`)
@@ -200,19 +195,45 @@ export default function ReportPage() {
       <div className="p-4 bg-white border-t border-gray-200 space-y-3">
         <button
           onClick={manejarDescargarExcel}
-          className="w-full py-3 px-4 bg-success text-white rounded-lg
-                     font-semibold text-base hover:bg-green-600
+          className="w-full py-3 px-4 bg-green-600 text-white rounded-lg
+                     font-semibold text-base hover:bg-green-700
                      transition-all duration-200 active:scale-95"
           style={{ minHeight: '48px' }}
         >
-          📥 Descargar reporte Excel
+          📊 Descargar Reporte Nuevo
         </button>
 
+        {archivoOriginal && foliosRevisados.length > 0 && (
+          <button
+            disabled={exportando}
+            onClick={async () => {
+              setExportando(true)
+              try {
+                const ultimoRev = foliosRevisados[foliosRevisados.length - 1]
+                const folioData = lotes[ultimoRev.folioId] || { folio: ultimoRev.folioId }
+                await exportarExcelConObservaciones(
+                  archivoOriginal,
+                  folioData,
+                  ultimoRev.resumenCSG || {},
+                  ultimoRev.cajasAsignadas || {}
+                )
+              } catch (err) {
+                alert('Error al exportar: ' + err.message)
+              } finally {
+                setExportando(false)
+              }
+            }}
+            className="w-full py-3 px-4 bg-blue-600 text-white rounded-lg
+                       font-semibold text-base hover:bg-blue-700
+                       transition-all duration-200 active:scale-95 disabled:opacity-60"
+            style={{ minHeight: '48px' }}
+          >
+            {exportando ? '⏳ Exportando...' : '📎 Exportar Excel original con observaciones'}
+          </button>
+        )}
+
         <button
-          onClick={() => {
-            resetear()
-            navigate('/')
-          }}
+          onClick={() => { resetear(); navigate('/') }}
           className="w-full py-2 px-4 bg-gray-200 text-gray-800 rounded-lg
                      font-semibold text-base hover:bg-gray-300
                      transition-all duration-200 active:scale-95"

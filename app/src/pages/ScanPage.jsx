@@ -1,45 +1,46 @@
 import { useState, useCallback } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useLoteStore } from '../store/useLoteStore'
 import { parsearQR, validarDuplicado } from '../utils/qrParser'
 import { compararQRconPlanilla, encontrarLineaCorrespondiente } from '../utils/comparator'
+import { actualizarEstado, guardarRevision, tieneBackend } from '../utils/api'
 import WedgeScanner from '../components/WedgeScanner'
 import BoxCounter from '../components/BoxCounter'
 import ComparativaTable from '../components/ComparativaTable'
 import AlertBanner from '../components/AlertBanner'
+import AsignarFaltantesModal from '../components/AsignarFaltantesModal'
 
-/**
- * Página de escaneo caja a caja
- * - WedgeScanner activo recibiendo QR
- * - Tabla de resumen en tiempo real
- * - Contador de progreso
- */
 export default function ScanPage() {
   const navigate = useNavigate()
-  const { folioId } = useParams()
 
   const [ultimoEscaneo, setUltimoEscaneo] = useState(null)
-  const [resultadoUltimo, setResultadoUltimo] = useState(null) // 'success', 'error', null
+  const [resultadoUltimo, setResultadoUltimo] = useState(null)
   const [mensajeError, setMensajeError] = useState('')
+  const [mostrarModalFaltantes, setMostrarModalFaltantes] = useState(false)
+  const [guardando, setGuardando] = useState(false)
 
   const obtenerFolioActual = useLoteStore(state => state.obtenerFolioActual)
   const cajasEscaneadas = useLoteStore(state => state.cajasEscaneadas)
+  const cajasAsignadas = useLoteStore(state => state.cajasAsignadas)
   const registrarCajaEscaneada = useLoteStore(state => state.registrarCajaEscaneada)
   const obtenerResumenPorCSG = useLoteStore(state => state.obtenerResumenPorCSG)
+  const obtenerEstadisticasRevision = useLoteStore(state => state.obtenerEstadisticasRevision)
   const marcarRevisionCompletada = useLoteStore(state => state.marcarRevisionCompletada)
   const guardarRevisionFolio = useLoteStore(state => state.guardarRevisionFolio)
+  const asignarCajasFaltantes = useLoteStore(state => state.asignarCajasFaltantes)
+  const folioActualId = useLoteStore(state => state.folioActual)
 
   const folio = obtenerFolioActual()
   const resumenCSG = obtenerResumenPorCSG()
   const totalEscaneado = Object.keys(cajasEscaneadas).length
+  const totalAsignadas = Object.values(cajasAsignadas).reduce((s, a) => s + (a.cantidad || 0), 0)
 
-  // Procesar contenido escaneado del QR
+  // ── Procesar QR escaneado ────────────────────────────────────────────────
   const procesarEscaneo = useCallback((contenido) => {
     setMensajeError('')
     setResultadoUltimo(null)
 
     try {
-      // Parsear QR
       const datosQR = parsearQR(contenido)
       if (!datosQR) {
         setMensajeError('QR inválido o mal formado')
@@ -47,14 +48,12 @@ export default function ScanPage() {
         return false
       }
 
-      // Validar no duplicado
       if (validarDuplicado(datosQR.ID, cajasEscaneadas)) {
         setMensajeError(`Caja #${datosQR.ID} ya fue escaneada`)
         setResultadoUltimo('error')
         return false
       }
 
-      // Buscar línea correspondiente en el folio
       const linea = encontrarLineaCorrespondiente(datosQR, folio.lineas)
       if (!linea) {
         setMensajeError(`CSG ${datosQR.Pro} no encontrado en el folio`)
@@ -62,24 +61,24 @@ export default function ScanPage() {
         return false
       }
 
-      // Comparar datos
       const diferencias = compararQRconPlanilla(datosQR, linea)
-
-      // Registrar caja en el store
       registrarCajaEscaneada(datosQR, linea, diferencias)
 
-      // Feedback
       setUltimoEscaneo({
         id: datosQR.ID,
         pro: datosQR.Pro,
         esp: datosQR.Esp,
         conDiferencias: diferencias.length > 0,
-        diferencias: diferencias,
+        diferencias,
       })
 
-      setResultadoUltimo(diferencias.length === 0 ? 'success' : 'warning')
-
-      return true
+      if (diferencias.length === 0) {
+        setResultadoUltimo('success')
+        return true
+      } else {
+        setResultadoUltimo('warning')
+        return 'warning'  // → WedgeScanner llama beepWarning()
+      }
     } catch (error) {
       console.error('Error procesando escaneo:', error)
       setMensajeError('Error procesando QR')
@@ -88,11 +87,60 @@ export default function ScanPage() {
     }
   }, [folio, cajasEscaneadas, registrarCajaEscaneada])
 
-  const manejarFinalizarRevision = () => {
-    marcarRevisionCompletada()
-    guardarRevisionFolio() // Guardar en histórico de foliosRevisados
-    // Volver a la lista de folios para continuar revisando
-    navigate('/')
+  // ── Intentar finalizar — verifica si hay cajas faltantes ────────────────
+  const intentarFinalizar = () => {
+    if (!folio) return
+    const resumen = obtenerResumenPorCSG()
+    const faltantes = Object.values(resumen).filter(
+      item => item.cajasEscaneadas + (item.cajasAsignadas || 0) < item.cajasDeclaradas
+    ).map(item => ({
+      csg: item.csg,
+      productor: item.productor,
+      cajasDeclaradas: item.cajasDeclaradas,
+      cajasEscaneadas: item.cajasEscaneadas,
+      faltantes: item.cajasDeclaradas - item.cajasEscaneadas - (item.cajasAsignadas || 0),
+    }))
+
+    if (faltantes.length > 0 && Object.keys(cajasAsignadas).length === 0) {
+      setMostrarModalFaltantes(true)
+    } else {
+      ejecutarFinalizar()
+    }
+  }
+
+  const manejarConfirmarAsignacion = (asignaciones) => {
+    asignarCajasFaltantes(asignaciones)
+    setMostrarModalFaltantes(false)
+    ejecutarFinalizar(asignaciones)
+  }
+
+  // ── Guardar revisión (local + API si disponible) ─────────────────────────
+  const ejecutarFinalizar = async (asignacionesExtra = null) => {
+    setGuardando(true)
+    try {
+      marcarRevisionCompletada()
+      guardarRevisionFolio()
+
+      // Sincronizar con API si está configurada
+      if (tieneBackend() && folioActualId) {
+        try {
+          const stats = obtenerEstadisticasRevision()
+          const resumen = obtenerResumenPorCSG()
+          await guardarRevision(folioActualId, {
+            cajasEscaneadas,
+            cajasAsignadas: asignacionesExtra || cajasAsignadas,
+            resumenCSG: resumen,
+            estadisticas: stats,
+          })
+        } catch (apiErr) {
+          console.warn('No se pudo guardar en API (modo offline):', apiErr.message)
+        }
+      }
+
+      navigate('/')
+    } finally {
+      setGuardando(false)
+    }
   }
 
   if (!folio) {
@@ -105,6 +153,23 @@ export default function ScanPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Modal de faltantes */}
+      {mostrarModalFaltantes && (
+        <AsignarFaltantesModal
+          faltantes={Object.values(resumenCSG)
+            .filter(item => item.cajasEscaneadas + (item.cajasAsignadas || 0) < item.cajasDeclaradas)
+            .map(item => ({
+              csg: item.csg,
+              productor: item.productor,
+              cajasDeclaradas: item.cajasDeclaradas,
+              cajasEscaneadas: item.cajasEscaneadas,
+              faltantes: item.cajasDeclaradas - item.cajasEscaneadas - (item.cajasAsignadas || 0),
+            }))}
+          onConfirmar={manejarConfirmarAsignacion}
+          onCancelar={() => setMostrarModalFaltantes(false)}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-blue-600 text-white p-4">
         <h1 className="text-xl font-bold">Escaneo de cajas</h1>
@@ -114,58 +179,57 @@ export default function ScanPage() {
       {/* Contenido scrolleable */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className="max-w-2xl mx-auto space-y-4">
-          {/* Contador grande */}
+
+          {/* Contador */}
           <div className="bg-white p-4 rounded-lg shadow-sm">
             <BoxCounter
-              escaneadas={totalEscaneado}
+              escaneadas={totalEscaneado + totalAsignadas}
               total={folio.totalDeclarado}
               mostrarBarra={true}
             />
+            {totalAsignadas > 0 && (
+              <p className="text-xs text-orange-600 mt-1 text-center">
+                ({totalEscaneado} escaneadas + {totalAsignadas} asignadas por etiqueta ausente)
+              </p>
+            )}
           </div>
 
-          {/* WedgeScanner */}
+          {/* Scanner */}
           <div className="bg-white p-4 rounded-lg shadow-sm">
-            <WedgeScanner
-              onScanComplete={procesarEscaneo}
-              isActive={true}
-            />
+            <WedgeScanner onScanComplete={procesarEscaneo} isActive={true} />
           </div>
 
-          {/* Última lectura y feedback */}
-          {ultimoEscaneo && (
+          {/* Última lectura */}
+          {(ultimoEscaneo || mensajeError) && (
             <AlertBanner
               tipo={
                 resultadoUltimo === 'success' ? 'success' :
-                resultadoUltimo === 'warning' ? 'anomaly' :
-                'error'
+                resultadoUltimo === 'warning' ? 'anomaly' : 'error'
               }
               mensaje={
                 resultadoUltimo === 'success'
-                  ? `✓ Caja #${ultimoEscaneo.id} OK`
+                  ? `✓ Caja #${ultimoEscaneo?.id} OK`
                   : resultadoUltimo === 'warning'
-                  ? `⚡ Caja #${ultimoEscaneo.id} con anomalías:\n${ultimoEscaneo.diferencias.map(d => `${d.campo}: ${d.valorPlanilla} vs ${d.valorQR}`).join('\n')}`
+                  ? `⚡ Caja #${ultimoEscaneo?.id} con anomalías:\n${ultimoEscaneo?.diferencias.map(d => `${d.campo}: ${d.valorPlanilla} → ${d.valorQR}`).join('\n')}`
                   : `✗ Error: ${mensajeError}`
               }
               visible={true}
             />
           )}
 
-          {/* Tabla de resumen por CSG */}
+          {/* Tabla comparativa completa */}
           <div className="bg-white p-4 rounded-lg shadow-sm">
             <h3 className="font-semibold text-gray-900 mb-3">
               Resumen por Productor
             </h3>
             <ComparativaTable
               resumenCSG={resumenCSG}
-              onFilaClick={(item) => {
-                // TODO: mostrar detalle de CSG específico
-              }}
+              onFilaClick={() => {}}
             />
           </div>
 
-          {/* Info */}
           <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 text-sm text-blue-800">
-            <p>💡 Continúa escaneando. Puedes finalizar en cualquier momento.</p>
+            <p>💡 Toca una fila para ver las cajas individuales escaneadas.</p>
           </div>
         </div>
       </div>
@@ -173,13 +237,14 @@ export default function ScanPage() {
       {/* Botones de acción */}
       <div className="p-4 bg-white border-t border-gray-200 space-y-3">
         <button
-          onClick={manejarFinalizarRevision}
-          className="w-full py-3 px-4 bg-success text-white rounded-lg
-                     font-semibold text-base hover:bg-green-600
-                     transition-all duration-200 active:scale-95"
+          onClick={intentarFinalizar}
+          disabled={guardando}
+          className="w-full py-3 px-4 bg-green-600 text-white rounded-lg
+                     font-semibold text-base hover:bg-green-700
+                     transition-all duration-200 active:scale-95 disabled:opacity-60"
           style={{ minHeight: '48px' }}
         >
-          ✓ Finalizar revisión
+          {guardando ? '⏳ Guardando...' : '✓ Finalizar revisión'}
         </button>
 
         <button

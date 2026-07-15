@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useLoteStore } from '../store/useLoteStore'
+import { actualizarEstado, tieneBackend } from '../utils/api'
 
 /**
  * Página de detalle del folio
@@ -24,10 +25,13 @@ export default function FolioDetailPage() {
     }
   }, [folio, navigate])
 
-  const manejarIniciarEscaneo = () => {
-    // Usar totalDeclarado como la cantidad de referencia
+  const manejarIniciarEscaneo = async () => {
     establecerCantidadFisica(folio.totalDeclarado)
     marcarRevisionEnProgreso()
+    // Sincronizar estado en-revision con API (si está disponible)
+    if (tieneBackend() && folioId) {
+      try { await actualizarEstado(folioId, 'en-revision') } catch (_) {}
+    }
     navigate(`/folio/${folioId}/scan`)
   }
 
@@ -63,27 +67,53 @@ export default function FolioDetailPage() {
             <p className="text-sm text-blue-200 mt-1">cajas</p>
           </div>
 
-          {/* Composición por productor (CSG) */}
+          {/* Composición por productor (CSG) — todos los campos */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
             <div className="p-4 border-b border-gray-100">
               <h2 className="font-semibold text-gray-900">
-                Composición del pallet ({folio.lineas.length} productores)
+                Composición del pallet ({folio.lineas.length} productor{folio.lineas.length !== 1 ? 'es' : ''})
               </h2>
             </div>
             <div className="divide-y divide-gray-100">
               {folio.lineas.map((linea, idx) => (
-                <div key={idx} className="p-4 flex justify-between items-start">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-900 text-sm">{linea.csg}</p>
-                    {linea.especie && (
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {linea.especie} {linea.varComercial ? `· ${linea.varComercial}` : ''}
-                      </p>
-                    )}
+                <div key={idx} className="p-4">
+                  {/* Fila superior: CSG + productor + cajas */}
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <p className="font-bold text-gray-900">{linea.csg}</p>
+                      {linea.productor && (
+                        <p className="text-xs text-gray-500">{linea.productor}</p>
+                      )}
+                    </div>
+                    <div className="text-right flex-shrink-0 ml-3">
+                      <span className="text-xl font-bold text-blue-700">{linea.cajasDeclaradas}</span>
+                      <span className="text-xs text-gray-400 ml-1">cajas</span>
+                    </div>
                   </div>
-                  <div className="text-right ml-3 flex-shrink-0">
-                    <span className="text-lg font-bold text-blue-700">{linea.cajasDeclaradas}</span>
-                    <span className="text-xs text-gray-400 ml-1">cajas</span>
+
+                  {/* Grilla de atributos */}
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                    {linea.especie && (
+                      <Campo label="Especie" valor={linea.especie} />
+                    )}
+                    {linea.varComercial && (
+                      <Campo label="Variedad" valor={linea.varComercial} />
+                    )}
+                    {linea.fechaPack && (
+                      <Campo label="Fec. Pack" valor={linea.fechaPack} destacado />
+                    )}
+                    {linea.sector && (
+                      <Campo label="Sector/SDP" valor={linea.sector} />
+                    )}
+                    {linea.csp && (
+                      <Campo label="CSP" valor={linea.csp} />
+                    )}
+                    {linea.provOrigen && (
+                      <Campo label="Prov. Origen" valor={linea.provOrigen} />
+                    )}
+                    {linea.comunaOrigen && (
+                      <Campo label="Comuna Origen" valor={linea.comunaOrigen} />
+                    )}
                   </div>
                 </div>
               ))}
@@ -110,6 +140,18 @@ export default function FolioDetailPage() {
           🔫 Iniciar Escaneo de Cajas
         </button>
       </div>
+    </div>
+  )
+}
+
+// Componente auxiliar para mostrar un campo etiqueta/valor
+function Campo({ label, valor, destacado = false }) {
+  return (
+    <div>
+      <span className="text-gray-400 block">{label}</span>
+      <span className={`font-semibold ${destacado ? 'text-blue-700' : 'text-gray-800'}`}>
+        {valor}
+      </span>
     </div>
   )
 }

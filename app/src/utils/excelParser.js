@@ -91,7 +91,7 @@ function crearMapeoColumnas(encabezados) {
     { claves: ['especie', 'especie/species'], id: 'especie' },
     { claves: ['variedad agronómica', 'var agronómica', 'var. agronómica'], id: 'variedad agronómica' },
     { claves: ['variedad comercial', 'var comercial', 'var. comercial'], id: 'variedad comercial' },
-    { claves: ['fec.pack', 'fec.pack.', 'fecha pack', 'fec pack'], id: 'fec.pack' },
+    { claves: ['fec.pack', 'fec.pack.', 'fecha pack', 'fec pack', 'fechapack', 'fecpack', 'f.pack', 'fpack'], id: 'fec.pack' },
     { claves: ['lote'], id: 'lote' },
     { claves: ['sdp/sector', 'sdp', 'sector'], id: 'sdp/sector' },
     { claves: ['cajas', 'cajas/boxes', 'cajas boxes'], id: 'cajas' },
@@ -101,10 +101,13 @@ function crearMapeoColumnas(encabezados) {
   encabezados.forEach((encabezado, idx) => {
     if (!encabezado) return
     const normalizado = String(encabezado).toLowerCase().trim()
-    
+    // Versión sin puntos, barras ni espacios para comparación flexible
+    const normalizadoLimpio = normalizado.replace(/[.\/\s]/g, '')
+
     columnasEsperadas.forEach(col => {
       col.claves.forEach(clave => {
-        if (normalizado.includes(clave.replace(/[.\/]/g, ''))) {
+        const claveLimpia = clave.replace(/[.\/\s]/g, '')
+        if (normalizadoLimpio.includes(claveLimpia) || normalizado.includes(clave)) {
           mapa[col.id] = idx
         }
       })

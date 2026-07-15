@@ -187,3 +187,76 @@ function obtenerFechaFormato() {
   const hoy = new Date()
   return `${String(hoy.getDate()).padStart(2, '0')}${String(hoy.getMonth() + 1).padStart(2, '0')}${hoy.getFullYear()}`
 }
+
+/**
+ * Exportar el Excel original cargado con una hoja adicional "Observaciones SAG"
+ * @param {File}   archivoOriginal  - archivo File del Excel subido
+ * @param {Object} folioData        - { folio, totalDeclarado, lineas }
+ * @param {Object} resumenCSG       - resumen con estados y diferencias
+ * @param {Object} cajasAsignadas   - { csg: { cantidad, motivo } }
+ */
+export async function exportarExcelConObservaciones(archivoOriginal, folioData, resumenCSG, cajasAsignadas = {}) {
+  try {
+    // Leer archivo original
+    const buffer = await archivoOriginal.arrayBuffer()
+    const wb = XLSX.read(buffer, { type: 'array' })
+
+    // Agregar hoja de observaciones SAG
+    const filas = [
+      ['OBSERVACIONES REVISIÓN SAG'],
+      [`Folio: ${folioData.folio}`],
+      [`Fecha revisión: ${new Date().toLocaleDateString('es-CL')} ${new Date().toLocaleTimeString('es-CL')}`],
+      [],
+      ['CSG', 'Productor', 'Especie', 'Variedad', 'Cajas Decl.', 'Cajas Scan.', 'Asignadas', 'Dif.', 'Estado', 'Observación'],
+    ]
+
+    Object.values(resumenCSG).forEach(item => {
+      const asig = cajasAsignadas[item.csg]
+      const totalEfectivo = item.cajasEscaneadas + (item.cajasAsignadas || 0)
+      const diferencia = totalEfectivo - item.cajasDeclaradas
+      filas.push([
+        item.csg,
+        item.productor,
+        item.especie || '',
+        item.varComercial || '',
+        item.cajasDeclaradas,
+        item.cajasEscaneadas,
+        item.cajasAsignadas || 0,
+        diferencia,
+        item.estado,
+        asig ? `Etiq. ausente: ${asig.motivo}` : obtenerObservacion(item),
+      ])
+    })
+
+    // Agregar columna "Estado SAG" en la primera hoja del original
+    const nombreHojaOriginal = wb.SheetNames[0]
+    const wsOriginal = wb.Sheets[nombreHojaOriginal]
+    const range = XLSX.utils.decode_range(wsOriginal['!ref'] || 'A1')
+
+    // Encabezado en columna siguiente al último
+    const colEstado = range.e.c + 1
+    const celdaHeader = XLSX.utils.encode_cell({ r: 0, c: colEstado })
+    wsOriginal[celdaHeader] = { t: 's', v: 'Estado SAG' }
+
+    // Actualizar rango
+    range.e.c = colEstado
+    wsOriginal['!ref'] = XLSX.utils.encode_range(range)
+
+    // Agregar hoja de observaciones
+    const wsObs = XLSX.utils.aoa_to_sheet(filas)
+    wsObs['!cols'] = [
+      { wch: 14 }, { wch: 22 }, { wch: 10 }, { wch: 12 },
+      { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 6 },
+      { wch: 14 }, { wch: 35 },
+    ]
+    XLSX.utils.book_append_sheet(wb, wsObs, 'Observaciones SAG')
+
+    // Descargar
+    const nombreBase = archivoOriginal.name.replace(/\.(xlsx|xls)$/i, '')
+    XLSX.writeFile(wb, `${nombreBase}_revisado_${obtenerFechaFormato()}.xlsx`)
+
+  } catch (error) {
+    console.error('Error exportando Excel con observaciones:', error)
+    throw error
+  }
+}

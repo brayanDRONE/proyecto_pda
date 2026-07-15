@@ -5,9 +5,11 @@
 export default function FolioCard({ folio, onClick }) {
   const obtenerEstadoBadge = (estado) => {
     const configs = {
-      'pendiente': { bg: 'bg-yellow-100', text: 'text-yellow-800', etiqueta: 'Pendiente' },
-      'en-revision': { bg: 'bg-blue-100', text: 'text-blue-800', etiqueta: 'En revisión' },
-      'completado': { bg: 'bg-success bg-opacity-10', text: 'text-success', etiqueta: 'Completado ✓' },
+      'pendiente':                   { bg: 'bg-gray-100',    text: 'text-gray-600',   etiqueta: 'Pendiente' },
+      'en-revision':                 { bg: 'bg-blue-100',   text: 'text-blue-800',   etiqueta: '🔄 En revisión' },
+      'revisado':                    { bg: 'bg-green-100',  text: 'text-green-800',  etiqueta: '✓ Revisado' },
+      'revisado-con-observaciones':  { bg: 'bg-orange-100', text: 'text-orange-800', etiqueta: '⚠️ Con observaciones' },
+      'completado':                  { bg: 'bg-green-100',  text: 'text-green-800',  etiqueta: '✓ Completado' },
     }
     return configs[estado] || configs['pendiente']
   }
