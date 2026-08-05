@@ -43,7 +43,7 @@ export default function FolioDetailPage() {
         await actualizarEstado(folioId, 'revisado')
       } catch (_) {}
     }
-    navigate('/', { state: { vista: 'operador' } })
+    navigate('/')
   }
 
   if (!folio) {
