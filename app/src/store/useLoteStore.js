@@ -188,6 +188,79 @@ export const useLoteStore = create((set, get) => ({
   },
 
   /**
+   * Aprobar un folio como OK sin revisión digital.
+   * Útil cuando el pallet tiene un solo CSG y se valida visualmente.
+   */
+  marcarRevisionVisualOK: () => {
+    const folioActual = get().obtenerFolioActual()
+    const lotes = get().lotes
+    if (!folioActual || !lotes[folioActual.folio]) return
+
+    const resumenCSG = {}
+    folioActual.lineas.forEach(linea => {
+      resumenCSG[linea.csg] = {
+        csg: linea.csg,
+        productor: linea.productor,
+        especie: linea.especie || '',
+        varComercial: linea.varComercial || '',
+        fechaPack: linea.fechaPack || '',
+        sector: linea.sector || '',
+        csp: linea.csp || '',
+        provOrigen: linea.provOrigen || '',
+        comunaOrigen: linea.comunaOrigen || '',
+        cajasDeclaradas: linea.cajasDeclaradas,
+        cajasEscaneadas: linea.cajasDeclaradas,
+        cajasAsignadas: 0,
+        diferencias: [],
+        cajasDetalle: [],
+        estado: 'OK',
+        revisionVisual: true,
+      }
+    })
+
+    const estadisticas = {
+      totalDeclarado: folioActual.totalDeclarado,
+      totalEscaneado: folioActual.totalDeclarado,
+      totalAsignadas: 0,
+      cantidadFisica: folioActual.totalDeclarado,
+      conDiferencias: 0,
+      tiposAnomalia: {},
+      cajasAsignadas: {},
+      revisionVisual: true,
+    }
+
+    set(state => ({
+      lotes: {
+        ...state.lotes,
+        [folioActual.folio]: {
+          ...state.lotes[folioActual.folio],
+          revisado: true,
+          estado: 'revisado',
+        },
+      },
+      estadoRevision: 'completada',
+      cajasEscaneadas: {},
+      cajasAsignadas: {},
+    }))
+
+    set(state => ({
+      foliosRevisados: [
+        ...state.foliosRevisados,
+        {
+          folioId: folioActual.folio,
+          batchId: folioActual.batchId || null,
+          cajasEscaneadas: {},
+          cajasAsignadas: {},
+          resumenCSG,
+          estadisticas,
+          revisionVisual: true,
+          fechaRevision: new Date().toISOString(),
+        },
+      ],
+    }))
+  },
+
+  /**
    * Registrar cajas faltantes asignadas manualmente (etiqueta ausente)
    * @param {Object} asignaciones - { csg: { cantidad, motivo } }
    */
@@ -384,10 +457,12 @@ export const useLoteStore = create((set, get) => ({
         ...state.foliosRevisados,
         {
           folioId: folioActual.folio,
+          batchId: folioActual.batchId || null,
           cajasEscaneadas,
           cajasAsignadas,
           resumenCSG,
           estadisticas,
+          revisionVisual: false,
           fechaRevision: new Date().toISOString(),
         },
       ],

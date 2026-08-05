@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useLoteStore } from '../store/useLoteStore'
 import WedgeScanner from '../components/WedgeScanner'
 import { parsearExcelSAG } from '../utils/excelParser'
@@ -14,6 +14,7 @@ const VISTA = {
 
 export default function HomePage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const {
     cargarLote,
     cargarLotesDesdeAPI,
@@ -54,6 +55,13 @@ export default function HomePage() {
       setLoteSeleccionadoId(null)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Permitir volver directamente al selector de folios después de finalizar una revisión
+  useEffect(() => {
+    if (location.state?.vista === VISTA.OPERADOR) {
+      setVista(VISTA.OPERADOR)
+    }
+  }, [location.state])
 
   const lotesBatch = obtenerLotesBatch()
   const hayLotes = lotesBatch.length > 0
@@ -142,6 +150,13 @@ export default function HomePage() {
               </button>
             </div>
           )}
+
+          <button
+            onClick={() => navigate('/reportes-revision')}
+            className="w-full bg-white border-2 border-blue-200 text-blue-700 font-bold rounded-xl py-3 active:bg-blue-50"
+          >
+            🗂 Reportes de revisión
+          </button>
 
           <button
             onClick={() => navigate('/debug-scanner')}

@@ -16,6 +16,7 @@ export default function FolioDetailPage() {
   const obtenerFolioActual = useLoteStore(state => state.obtenerFolioActual)
   const establecerCantidadFisica = useLoteStore(state => state.establecerCantidadFisica)
   const marcarRevisionEnProgreso = useLoteStore(state => state.marcarRevisionEnProgreso)
+  const marcarRevisionVisualOK = useLoteStore(state => state.marcarRevisionVisualOK)
 
   const folio = obtenerFolioActual()
 
@@ -33,6 +34,16 @@ export default function FolioDetailPage() {
       try { await actualizarEstado(folioId, 'en-revision') } catch (_) {}
     }
     navigate(`/folio/${folioId}/scan`)
+  }
+
+  const manejarAprobarVisualmente = async () => {
+    marcarRevisionVisualOK()
+    if (tieneBackend() && folioId) {
+      try {
+        await actualizarEstado(folioId, 'revisado')
+      } catch (_) {}
+    }
+    navigate('/', { state: { vista: 'operador' } })
   }
 
   if (!folio) {
@@ -130,15 +141,27 @@ export default function FolioDetailPage() {
 
       {/* Botón iniciar */}
       <div className="p-4 bg-white border-t border-gray-200">
-        <button
-          onClick={manejarIniciarEscaneo}
-          className="w-full py-4 bg-green-600 text-white rounded-xl
-                     font-bold text-lg hover:bg-green-700
-                     transition-all duration-200 active:scale-95 shadow-md"
-          style={{ minHeight: '56px' }}
-        >
-          🔫 Iniciar Escaneo de Cajas
-        </button>
+        <div className="space-y-3">
+          <button
+            onClick={manejarIniciarEscaneo}
+            className="w-full py-4 bg-green-600 text-white rounded-xl
+                       font-bold text-lg hover:bg-green-700
+                       transition-all duration-200 active:scale-95 shadow-md"
+            style={{ minHeight: '56px' }}
+          >
+            🔫 Iniciar Escaneo de Cajas
+          </button>
+
+          <button
+            onClick={manejarAprobarVisualmente}
+            className="w-full py-4 bg-blue-600 text-white rounded-xl
+                       font-bold text-base hover:bg-blue-700
+                       transition-all duration-200 active:scale-95 shadow-md"
+            style={{ minHeight: '56px' }}
+          >
+            ✓ Aprobar visualmente sin escaneo
+          </button>
+        </div>
       </div>
     </div>
   )

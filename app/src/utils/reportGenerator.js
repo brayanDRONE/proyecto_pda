@@ -306,3 +306,62 @@ export function generarReporteComparativaExcel(folioId, resumenCSG) {
     throw error
   }
 }
+
+/**
+ * Generar reporte consolidado de revisión por lote.
+ * @param {Object} batch - lote agrupado del home
+ * @param {Array} revisiones - folios revisados pertenecientes al lote
+ */
+export function generarReporteRevisionLoteExcel(batch, revisiones) {
+  try {
+    const filas = []
+
+    revisiones.forEach(revision => {
+      const folioId = revision.folioId
+      Object.values(revision.resumenCSG || {}).forEach(item => {
+        const visual = Boolean(revision.revisionVisual || item.revisionVisual)
+        filas.push({
+          folio: folioId,
+          csg: item.csg,
+          provincia: item.provOrigen || 'No encontrado',
+          comuna: item.comunaOrigen || 'No encontrado',
+          csp: item.csp || '-',
+          especie: item.especie || '-',
+          variedad: item.varComercial || '-',
+          fecha: item.fechaPack || '-',
+          acumulado_cajas: visual ? item.cajasDeclaradas : (item.cajasEscaneadas || 0),
+          cajas_declaradas: item.cajasDeclaradas || 0,
+          estado: visual ? 'OK' : (item.estado || 'OK'),
+          observacion: visual ? 'Aprobado sin revisión digital' : (item.diferencias?.length ? 'Con diferencias' : 'Sin diferencias'),
+        })
+      })
+    })
+
+    const encabezados = [
+      'Folio', 'CSG', 'Provincia', 'Comuna', 'CSP', 'Especie', 'Variedad', 'Fecha',
+      'Acumulado Cajas', 'Cajas Declaradas', 'Estado', 'Observación',
+    ]
+
+    const ws = XLSX.utils.json_to_sheet(filas, { header: encabezados })
+    ws['!cols'] = [
+      { wch: 16 }, { wch: 12 }, { wch: 18 }, { wch: 18 },
+      { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 14 },
+      { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 30 },
+    ]
+
+    const resumenWs = XLSX.utils.aoa_to_sheet([
+      ['REPORTE DE REVISIÓN POR LOTE'],
+      [`Lote: ${batch.nombreArchivo}`],
+      [`Folios revisados: ${revisiones.length}`],
+      [`Fecha: ${new Date().toLocaleDateString('es-CL')}`],
+    ])
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, resumenWs, 'Resumen')
+    XLSX.utils.book_append_sheet(wb, ws, 'Detalle')
+    XLSX.writeFile(wb, `Reporte_Revision_${batch.nombreArchivo.replace(/\.[^.]+$/, '')}.xlsx`)
+  } catch (error) {
+    console.error('Error generando reporte de revisión por lote:', error)
+    throw error
+  }
+}

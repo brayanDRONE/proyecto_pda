@@ -28,6 +28,7 @@ export default function ScanPage() {
   const marcarRevisionCompletada = useLoteStore(state => state.marcarRevisionCompletada)
   const guardarRevisionFolio = useLoteStore(state => state.guardarRevisionFolio)
   const asignarCajasFaltantes = useLoteStore(state => state.asignarCajasFaltantes)
+  const setLoteSeleccionadoId = useLoteStore(state => state.setLoteSeleccionadoId)
   const folioActualId = useLoteStore(state => state.folioActual)
 
   const folio = obtenerFolioActual()
@@ -168,8 +169,9 @@ export default function ScanPage() {
         }
       }
 
-      // Navegar al reporte comparativo del folio
-      navigate(`/folio/${folioActualId}/reporte-comparativa`)
+      // Volver a la vista de selección de folios del home
+      setLoteSeleccionadoId(null)
+      navigate('/', { state: { vista: 'operador' } })
     } finally {
       setGuardando(false)
     }
