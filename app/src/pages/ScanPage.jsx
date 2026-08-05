@@ -169,9 +169,8 @@ export default function ScanPage() {
         }
       }
 
-      // Volver a la vista de selección de folios del home
-      setLoteSeleccionadoId(null)
-      navigate('/', { state: { vista: 'operador' } })
+      // Volver al home conservando el batch seleccionado para restaurar la lista de folios
+      navigate('/')
     } finally {
       setGuardando(false)
     }
