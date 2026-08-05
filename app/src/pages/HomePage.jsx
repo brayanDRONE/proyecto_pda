@@ -23,6 +23,8 @@ export default function HomePage() {
     foliosRevisados,
     resetear,
     obtenerReporteConsolidado,
+    loteSeleccionadoId,
+    setLoteSeleccionadoId,
   } = useLoteStore()
 
   const [vista, setVista] = useState(VISTA.PRINCIPAL)
@@ -39,13 +41,28 @@ export default function HomePage() {
       .catch(() => {})
   }, [])
 
+  // Restaurar vista LOTE_DETALLE si se vuelve de ScanPage tras finalizar
+  useEffect(() => {
+    if (loteSeleccionadoId) {
+      const batches = obtenerLotesBatch()
+      const batch = batches.find(b => b.id === loteSeleccionadoId)
+      if (batch) {
+        setLoteSeleccionado(batch)
+        setVista(VISTA.LOTE_DETALLE)
+      }
+      // Limpiar para que no persista en siguiente montaje
+      setLoteSeleccionadoId(null)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const lotesBatch = obtenerLotesBatch()
   const hayLotes = lotesBatch.length > 0
   const hayRevisados = foliosRevisados && foliosRevisados.length > 0
   const lotesPendientes = lotesBatch.filter(b => ['pendiente', 'en-revision'].includes(b.estado))
 
-  const irAlFolio = (folioId) => {
+  const irAlFolio = (folioId, batchId = null) => {
     iniciarRevision(folioId)
+    if (batchId) setLoteSeleccionadoId(batchId)
     navigate(`/folio/${folioId}/detail`)
   }
 
@@ -389,7 +406,7 @@ export default function HomePage() {
               {foliosPend.map(item => (
                 <button
                   key={item.folio}
-                  onClick={() => irAlFolio(item.folio)}
+                  onClick={() => irAlFolio(item.folio, batch.id)}
                   className="w-full bg-white text-left rounded-xl border-2 border-gray-200
                              px-4 py-4 active:scale-95 hover:border-blue-500 hover:bg-blue-50 transition-all"
                   style={{ minHeight: '72px' }}

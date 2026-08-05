@@ -43,7 +43,23 @@ export default function ScanPage() {
     try {
       const datosQR = parsearQR(contenido)
       if (!datosQR) {
-        setMensajeError('QR inválido o mal formado')
+        // Analizar por qué falló el parse para dar mensaje específico
+        let motivo = 'QR inválido o mal formado'
+        try {
+          const json = JSON.parse(contenido)
+          if (!json.caja) {
+            motivo = 'QR inválido: estructura incorrecta (falta clave "caja")'
+          } else {
+            const c = json.caja
+            if (!c.ID)  motivo = 'QR inválido: ID de caja no encontrado'
+            else if (!c.Pro) motivo = 'QR inválido: CGS (Pro) no encontrado'
+            else if (!c.FP)  motivo = 'QR inválido: Fecha packing (FP) no encontrada'
+            else if (!c.Sector) motivo = 'QR inválido: SDP/Sector no encontrado'
+          }
+        } catch (_) {
+          motivo = 'QR inválido: no es un JSON válido'
+        }
+        setMensajeError(motivo)
         setResultadoUltimo('error')
         return false
       }
@@ -56,7 +72,9 @@ export default function ScanPage() {
 
       const linea = encontrarLineaCorrespondiente(datosQR, folio.lineas)
       if (!linea) {
-        setMensajeError(`CSG ${datosQR.Pro} no encontrado en el folio`)
+        // Mensaje específico: CGS no encontrado en el folio
+        const csgEscaneado = datosQR.Pro || 'desconocido'
+        setMensajeError(`CGS "${csgEscaneado}" no encontrado en el folio`)
         setResultadoUltimo('error')
         return false
       }
@@ -76,6 +94,19 @@ export default function ScanPage() {
         setResultadoUltimo('success')
         return true
       } else {
+        // Construir mensaje descriptivo con los campos en anomalía
+        const ETIQUETAS = {
+          csg: 'CGS',
+          csp: 'CSP',
+          especie: 'Especie',
+          varComercial: 'Variedad',
+          fechaPack: 'Fecha packing',
+          sector: 'SDP/Sector',
+        }
+        const detalle = diferencias
+          .map(d => `${ETIQUETAS[d.campo] || d.campo}: planilla="${d.valorPlanilla}" | QR="${d.valorQR}"`)
+          .join(' · ')
+        setMensajeError(detalle)
         setResultadoUltimo('warning')
         return 'warning'  // → WedgeScanner llama beepWarning()
       }
@@ -137,7 +168,8 @@ export default function ScanPage() {
         }
       }
 
-      navigate('/')
+      // Navegar al reporte comparativo del folio
+      navigate(`/folio/${folioActualId}/reporte-comparativa`)
     } finally {
       setGuardando(false)
     }
@@ -208,10 +240,10 @@ export default function ScanPage() {
               }
               mensaje={
                 resultadoUltimo === 'success'
-                  ? `✓ Caja #${ultimoEscaneo?.id} OK`
+                  ? `✓ Caja #${ultimoEscaneo?.id} OK — CGS: ${ultimoEscaneo?.pro}`
                   : resultadoUltimo === 'warning'
-                  ? `⚡ Caja #${ultimoEscaneo?.id} con anomalías:\n${ultimoEscaneo?.diferencias.map(d => `${d.campo}: ${d.valorPlanilla} → ${d.valorQR}`).join('\n')}`
-                  : `✗ Error: ${mensajeError}`
+                  ? `⚡ Caja #${ultimoEscaneo?.id} — ANOMALÍA DETECTADA:\n${mensajeError}`
+                  : `✗ ERROR: ${mensajeError}`
               }
               visible={true}
             />

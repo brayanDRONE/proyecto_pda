@@ -12,6 +12,9 @@ export const useLoteStore = create((set, get) => ({
   // Folio actual en revisión
   folioActual: null,
 
+  // ID del batch/lote seleccionado por el operador (para restaurar la vista correcta al finalizar)
+  loteSeleccionadoId: null,
+
   // ========== DATOS DE REVISIÓN ==========
 
   // Cajas escaneadas: { id: { datosQR, lineaAsignada, diferencias } }
@@ -224,6 +227,8 @@ export const useLoteStore = create((set, get) => ({
         fechaPack: linea.fechaPack || '',
         sector: linea.sector || '',
         csp: linea.csp || '',
+        provOrigen: linea.provOrigen || '',
+        comunaOrigen: linea.comunaOrigen || '',
         cajasDeclaradas: linea.cajasDeclaradas,
         cajasEscaneadas: 0,
         cajasAsignadas: 0,
@@ -307,12 +312,20 @@ export const useLoteStore = create((set, get) => ({
 
   // ========== RESET ==========
 
+  /**
+   * Establecer el batch activo para restaurar la vista del operador al finalizar
+   */
+  setLoteSeleccionadoId: (batchId) => {
+    set({ loteSeleccionadoId: batchId })
+  },
+
   resetear: () => {
     set({
       lotes: {},
       lotesBatch: [],
       archivoOriginal: null,
       folioActual: null,
+      loteSeleccionadoId: null,
       cajasEscaneadas: {},
       cajasAsignadas: {},
       cantidadFisica: null,

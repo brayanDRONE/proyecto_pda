@@ -260,3 +260,49 @@ export async function exportarExcelConObservaciones(archivoOriginal, folioData, 
     throw error
   }
 }
+
+/**
+ * Generar reporte comparativo por folio (lo que se encontró vs planilla)
+ * Columnas: Folio, CSG, Provincia, Comuna, CSP, Especie, Variedad, Fecha, Cajas Escaneadas, Cajas Declaradas, Estado
+ *
+ * @param {string} folioId
+ * @param {Object} resumenCSG - obtenido de obtenerResumenPorCSG() del store
+ */
+export function generarReporteComparativaExcel(folioId, resumenCSG) {
+  try {
+    const encabezados = [
+      'Folio', 'CSG', 'Provincia Origen', 'Comuna Origen',
+      'CSP', 'Especie', 'Variedad', 'Fecha Pack',
+      'Cajas Escaneadas', 'Cajas Declaradas', 'Diferencia', 'Estado',
+    ]
+
+    const filas = Object.values(resumenCSG).map(item => [
+      folioId,
+      item.csg,
+      item.provOrigen || 'No encontrado',
+      item.comunaOrigen || 'No encontrado',
+      item.csp || '-',
+      item.especie || '-',
+      item.varComercial || '-',
+      item.fechaPack || '-',
+      item.cajasEscaneadas,
+      item.cajasDeclaradas,
+      (item.cajasEscaneadas + (item.cajasAsignadas || 0)) - item.cajasDeclaradas,
+      item.estado,
+    ])
+
+    const ws = XLSX.utils.aoa_to_sheet([encabezados, ...filas])
+    ws['!cols'] = [
+      { wch: 14 }, { wch: 12 }, { wch: 18 }, { wch: 18 },
+      { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 14 },
+      { wch: 16 }, { wch: 16 }, { wch: 11 }, { wch: 12 },
+    ]
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Comparativa')
+    XLSX.writeFile(wb, `Comparativa_${folioId}_${obtenerFechaFormato()}.xlsx`)
+  } catch (error) {
+    console.error('Error generando reporte comparativa:', error)
+    throw error
+  }
+}

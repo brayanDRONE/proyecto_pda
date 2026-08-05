@@ -20,6 +20,7 @@ from rest_framework import status
 from mongoengine.errors import DoesNotExist, NotUniqueError
 
 from .models import Lote, LineasLote, ESTADOS_LOTE
+from .utils import generar_reporte_comparativo
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,7 @@ class LoteListView(APIView):
                 )
 
             # Construir lineas embebidas
+            # Nota: el frontend envía provOrigen/provPack; aceptar también las formas largas
             lineas_docs = []
             for l in datos.get('lineas', []):
                 lineas_docs.append(LineasLote(
@@ -76,6 +78,10 @@ class LoteListView(APIView):
                     sector=l.get('sector', ''),
                     csp=str(l.get('csp', '')),
                     varAgronomica=l.get('varAgronomica', ''),
+                    provinciaOrigen=l.get('provOrigen') or l.get('provinciaOrigen', ''),
+                    comunaOrigen=l.get('comunaOrigen', ''),
+                    provinciaPack=l.get('provPack') or l.get('provinciaPack', ''),
+                    comunaPack=l.get('comunaPack', ''),
                 ))
 
             lote = Lote(
@@ -211,12 +217,24 @@ class LoteRevisionView(APIView):
             else:
                 lote.estado = 'revisado'
 
+            # Generar reporte comparativo antes de guardar
+            reporte_comparativo = generar_reporte_comparativo(lote, revision_data)
+
             lote.save()
+
+            # Liberar archivo GridFS: ya no se necesita tras la revisión
+            try:
+                if lote.archivo and lote.archivo.grid_id:
+                    lote.archivo.delete()
+                    lote.save()
+            except Exception:
+                logger.warning('No se pudo eliminar el archivo GridFS del folio %s', folio_id)
 
             return Response({
                 'folio_id': folio_id,
                 'estado': lote.estado,
                 'mensaje': 'Revisión guardada correctamente',
+                'reporte_comparativo': reporte_comparativo,
             })
         except DoesNotExist:
             return Response({'error': 'Folio no encontrado'}, status=status.HTTP_404_NOT_FOUND)
