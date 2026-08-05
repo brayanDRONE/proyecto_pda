@@ -153,9 +153,28 @@ export default function HomePage() {
 
           <button
             onClick={() => navigate('/reportes-revision')}
-            className="w-full bg-white border-2 border-blue-200 text-blue-700 font-bold rounded-xl py-3 active:bg-blue-50"
+            className="w-full bg-white rounded-2xl shadow border-2 border-purple-100 p-6
+                       text-left active:scale-95 transition-transform hover:border-purple-400"
+            style={{ minHeight: '110px' }}
           >
-            🗂 Reportes de revisión
+            <div className="flex items-start gap-4">
+              <span className="text-4xl">📊</span>
+              <div>
+                <p className="font-bold text-gray-900 text-lg">Reportes de revisión</p>
+                <p className="text-gray-500 text-sm mt-1">
+                  Descargar el consolidado de lotes revisados.
+                </p>
+                {hayRevisados ? (
+                  <p className="text-purple-600 text-xs font-semibold mt-2">
+                    ● {foliosRevisados.length} folio(s) revisado(s) disponibles
+                  </p>
+                ) : (
+                  <p className="text-gray-400 text-xs mt-2">
+                    No hay lotes revisados todavía
+                  </p>
+                )}
+              </div>
+            </div>
           </button>
 
           <button
