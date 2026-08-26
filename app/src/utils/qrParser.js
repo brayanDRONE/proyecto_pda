@@ -24,18 +24,20 @@ export function parsearQR(contenidoQR) {
     
     // Extraer campos críticos
     const datosNormalizados = {
-      ID: datosCaja.ID ? String(datosCaja.ID) : null,
-      Pro: datosCaja.Pro ? String(datosCaja.Pro) : null,          // CSG (productor)
-      Cua: datosCaja.Cua ? String(datosCaja.Cua) : null,          // CSP (centro de packing)
-      Esp: datosCaja.Esp ? String(datosCaja.Esp) : null,          // Especie
-      Var: datosCaja.Var ? String(datosCaja.Var) : null,          // Variedad
-      FP: datosCaja.FP ? String(datosCaja.FP) : null,             // Fecha packing
-      Sector: datosCaja.Sector ? String(datosCaja.Sector) : null, // Sector
+      ID:     datosCaja.ID     ? String(datosCaja.ID)     : null,
+      Pro:    datosCaja.Pro    ? String(datosCaja.Pro)    : null, // CSG (productor)
+      Cua:    datosCaja.Cua    ? String(datosCaja.Cua)    : null, // SDP/Sector (código numérico)
+      Fri:    datosCaja.Fri    ? String(datosCaja.Fri)    : null, // CSP (centro de packing)
+      Esp:    datosCaja.Esp    ? String(datosCaja.Esp)    : null, // Especie (abreviada)
+      Var:    datosCaja.Var    ? String(datosCaja.Var)    : null, // Variedad (abreviada)
+      VEti:   datosCaja.VEti   ? String(datosCaja.VEti)   : null, // Variedad etiqueta (alternativa)
+      FP:     datosCaja.FP     ? String(datosCaja.FP)     : null, // Fecha packing
+      Sector: datosCaja.Sector ? String(datosCaja.Sector) : null, // Sector físico (1, 2, 3…)
       // Campos adicionales para referencia
-      NProc: datosCaja.NProc ? String(datosCaja.NProc) : null,
-      Turno: datosCaja.Turno ? String(datosCaja.Turno) : null,
-      Linea: datosCaja.Linea ? String(datosCaja.Linea) : null,
-      Emp: datosCaja.Emp ? String(datosCaja.Emp) : null,
+      NProc:  datosCaja.NProc  ? String(datosCaja.NProc)  : null,
+      Turno:  datosCaja.Turno  ? String(datosCaja.Turno)  : null,
+      Linea:  datosCaja.Linea  ? String(datosCaja.Linea)  : null,
+      Emp:    datosCaja.Emp    ? String(datosCaja.Emp)    : null,
     }
     
     // Validar que tenga al menos el ID
