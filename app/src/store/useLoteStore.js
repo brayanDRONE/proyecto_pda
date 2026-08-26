@@ -197,8 +197,13 @@ export const useLoteStore = create((set, get) => ({
     if (!folioActual || !lotes[folioActual.folio]) return
 
     const resumenCSG = {}
+    const claveLinea = (l) =>
+      `${String(l.csg||'').trim()}|${String(l.fechaPack||'').trim()}|${String(l.sector||'').trim()}`
+
     folioActual.lineas.forEach(linea => {
-      resumenCSG[linea.csg] = {
+      const key = claveLinea(linea)
+      resumenCSG[key] = {
+        _clave: key,
         csg: linea.csg,
         productor: linea.productor,
         especie: linea.especie || '',
@@ -280,8 +285,9 @@ export const useLoteStore = create((set, get) => ({
   },
 
   /**
-   * Obtener resumen por CSG con TODOS los campos (especie, variedad, fecha, sector, csp)
-   * y detalle de cajas individuales escaneadas
+   * Obtener resumen por línea de planilla con TODOS los campos.
+   * La clave del objeto es "CSG|FechaPack|Sector" para distinguir
+   * múltiples líneas del mismo productor con distintas fechas.
    */
   obtenerResumenPorCSG: () => {
     const folioActual = get().obtenerFolioActual()
@@ -289,10 +295,16 @@ export const useLoteStore = create((set, get) => ({
     const cajasAsignadas = get().cajasAsignadas
     if (!folioActual) return {}
 
+    // Helper: clave compuesta única por línea
+    const claveLinea = (l) =>
+      `${String(l.csg||'').trim()}|${String(l.fechaPack||'').trim()}|${String(l.sector||'').trim()}`
+
     const resumen = {}
 
     folioActual.lineas.forEach(linea => {
-      resumen[linea.csg] = {
+      const key = claveLinea(linea)
+      resumen[key] = {
+        _clave: key,
         csg: linea.csg,
         productor: linea.productor,
         especie: linea.especie || '',
@@ -312,36 +324,39 @@ export const useLoteStore = create((set, get) => ({
     })
 
     Object.values(cajasEscaneadas).forEach(caja => {
-      if (caja.lineaAsignada && resumen[caja.lineaAsignada.csg]) {
-        resumen[caja.lineaAsignada.csg].cajasEscaneadas += 1
-        resumen[caja.lineaAsignada.csg].cajasDetalle.push({
+      if (!caja.lineaAsignada) return
+      const key = claveLinea(caja.lineaAsignada)
+      if (resumen[key]) {
+        resumen[key].cajasEscaneadas += 1
+        resumen[key].cajasDetalle.push({
           id: caja.datosQR.ID,
-          csp: caja.datosQR.Cua,
+          csp: caja.datosQR.Fri,
           especie: caja.datosQR.Esp,
           variedad: caja.datosQR.Var,
           fechaPack: caja.datosQR.FP,
-          sector: caja.datosQR.Sector,
+          sector: caja.datosQR.Cua,
           diferencias: caja.diferencias,
         })
         if (caja.diferencias.length > 0) {
-          resumen[caja.lineaAsignada.csg].diferencias.push(...caja.diferencias)
-          resumen[caja.lineaAsignada.csg].estado = 'ANOMALÍA'
+          resumen[key].diferencias.push(...caja.diferencias)
+          resumen[key].estado = 'ANOMALÍA'
         }
       }
     })
 
-    Object.entries(cajasAsignadas).forEach(([csg, asig]) => {
-      if (resumen[csg]) {
-        resumen[csg].cajasAsignadas = asig.cantidad || 0
+    // cajasAsignadas ahora usa la clave compuesta como llave
+    Object.entries(cajasAsignadas).forEach(([clave, asig]) => {
+      if (resumen[clave]) {
+        resumen[clave].cajasAsignadas = asig.cantidad || 0
       }
     })
 
     Object.values(resumen).forEach(item => {
       if (item.estado !== 'ANOMALÍA') {
         const totalEfectivo = item.cajasEscaneadas + item.cajasAsignadas
-        if (totalEfectivo > item.cajasDeclaradas) item.estado = 'EXCESO'
-        else if (totalEfectivo < item.cajasDeclaradas) item.estado = 'FALTA'
-        else item.estado = 'OK'
+        if (totalEfectivo > item.cajasDeclaradas)       item.estado = 'EXCESO'
+        else if (totalEfectivo < item.cajasDeclaradas)  item.estado = 'FALTA'
+        else                                             item.estado = 'OK'
       }
     })
 

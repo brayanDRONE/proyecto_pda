@@ -126,8 +126,10 @@ export default function ScanPage() {
     const faltantes = Object.values(resumen).filter(
       item => item.cajasEscaneadas + (item.cajasAsignadas || 0) < item.cajasDeclaradas
     ).map(item => ({
+      _clave: item._clave,
       csg: item.csg,
       productor: item.productor,
+      fechaPack: item.fechaPack,
       cajasDeclaradas: item.cajasDeclaradas,
       cajasEscaneadas: item.cajasEscaneadas,
       faltantes: item.cajasDeclaradas - item.cajasEscaneadas - (item.cajasAsignadas || 0),
@@ -192,8 +194,10 @@ export default function ScanPage() {
           faltantes={Object.values(resumenCSG)
             .filter(item => item.cajasEscaneadas + (item.cajasAsignadas || 0) < item.cajasDeclaradas)
             .map(item => ({
+              _clave: item._clave,
               csg: item.csg,
               productor: item.productor,
+              fechaPack: item.fechaPack,
               cajasDeclaradas: item.cajasDeclaradas,
               cajasEscaneadas: item.cajasEscaneadas,
               faltantes: item.cajasDeclaradas - item.cajasEscaneadas - (item.cajasAsignadas || 0),

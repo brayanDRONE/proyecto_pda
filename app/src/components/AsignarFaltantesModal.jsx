@@ -4,38 +4,40 @@ import { useState } from 'react'
  * Modal para asignar cajas faltantes con motivo "Etiqueta ausente/dañada"
  *
  * Props:
- *   faltantes   - Array de { csg, productor, cajasDeclaradas, cajasEscaneadas, faltantes }
- *   onConfirmar - (asignaciones) => void — { csg: { cantidad, motivo } }
+ *   faltantes   - Array de { _clave, csg, productor, fechaPack, cajasDeclaradas, cajasEscaneadas, faltantes }
+ *   onConfirmar - (asignaciones) => void — { _clave: { cantidad, motivo } }
  *   onCancelar  - () => void
  */
 export default function AsignarFaltantesModal({ faltantes = [], onConfirmar, onCancelar }) {
   const [asignaciones, setAsignaciones] = useState(() => {
     const init = {}
     faltantes.forEach(f => {
-      init[f.csg] = { cantidad: f.faltantes, motivo: 'Etiqueta ausente/dañada', incluir: true }
+      // Usar _clave (compuesta) si está disponible, fallback a csg
+      const key = f._clave || f.csg
+      init[key] = { cantidad: f.faltantes, motivo: 'Etiqueta ausente/dañada', incluir: true }
     })
     return init
   })
 
-  const toggleIncluir = (csg) => {
+  const toggleIncluir = (key) => {
     setAsignaciones(prev => ({
       ...prev,
-      [csg]: { ...prev[csg], incluir: !prev[csg].incluir }
+      [key]: { ...prev[key], incluir: !prev[key].incluir }
     }))
   }
 
-  const cambiarMotivo = (csg, motivo) => {
+  const cambiarMotivo = (key, motivo) => {
     setAsignaciones(prev => ({
       ...prev,
-      [csg]: { ...prev[csg], motivo }
+      [key]: { ...prev[key], motivo }
     }))
   }
 
   const confirmar = () => {
     const resultado = {}
-    Object.entries(asignaciones).forEach(([csg, val]) => {
+    Object.entries(asignaciones).forEach(([key, val]) => {
       if (val.incluir) {
-        resultado[csg] = { cantidad: val.cantidad, motivo: val.motivo }
+        resultado[key] = { cantidad: val.cantidad, motivo: val.motivo }
       }
     })
     onConfirmar(resultado)
@@ -65,10 +67,11 @@ export default function AsignarFaltantesModal({ faltantes = [], onConfirmar, onC
           </p>
 
           {faltantes.map((f) => {
-            const asig = asignaciones[f.csg]
+            const key = f._clave || f.csg
+            const asig = asignaciones[key]
             return (
               <div
-                key={f.csg}
+                key={key}
                 className={`border-2 rounded-xl p-3 transition-all ${
                   asig.incluir ? 'border-orange-400 bg-orange-50' : 'border-gray-200 bg-gray-50 opacity-60'
                 }`}
@@ -78,12 +81,15 @@ export default function AsignarFaltantesModal({ faltantes = [], onConfirmar, onC
                   <div>
                     <p className="font-bold text-gray-900">{f.csg}</p>
                     <p className="text-xs text-gray-500">{f.productor}</p>
+                    {f.fechaPack && (
+                      <p className="text-xs text-blue-600 font-medium">📅 {f.fechaPack}</p>
+                    )}
                   </div>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <span className="text-xs text-gray-600">Asignar</span>
                     <div
                       className={`w-11 h-6 rounded-full transition-colors ${asig.incluir ? 'bg-orange-500' : 'bg-gray-300'}`}
-                      onClick={() => toggleIncluir(f.csg)}
+                      onClick={() => toggleIncluir(key)}
                       style={{ position: 'relative', cursor: 'pointer' }}
                     >
                       <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${asig.incluir ? 'translate-x-5' : 'translate-x-0.5'}`} />
@@ -102,7 +108,7 @@ export default function AsignarFaltantesModal({ faltantes = [], onConfirmar, onC
                 {asig.incluir && (
                   <select
                     value={asig.motivo}
-                    onChange={e => cambiarMotivo(f.csg, e.target.value)}
+                    onChange={e => cambiarMotivo(key, e.target.value)}
                     className="w-full text-sm border border-orange-300 rounded-lg px-2 py-1.5 bg-white"
                   >
                     <option>Etiqueta ausente/dañada</option>

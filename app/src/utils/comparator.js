@@ -128,19 +128,45 @@ export function compararQRconPlanilla(datosQR, linea) {
 }
 
 /**
- * Buscar la línea del folio que corresponde a un QR
- * Se busca por el campo Pro (CSG del productor)
- * @param {Object} datosCaja - datosQR
- * @param {Array} lineas - líneas del folio
+ * Buscar la línea del folio que corresponde a un QR escaneado.
+ * Usa 3 niveles de prioridad para manejar folios con múltiples líneas
+ * del mismo productor (mismo CSG, distintas fechas o sectores).
+ *
+ * Prioridad:
+ *   1. CSG + FechaPack + SDP  → coincidencia exacta (ideal)
+ *   2. CSG + SDP              → misma bodega, fecha diferente (marca anomalía de fecha)
+ *   3. Solo CSG               → fallback genérico
+ *
+ * @param {Object} datosCaja - datosQR parseado
+ * @param {Array}  lineas    - líneas del folio
  * @returns {Object|null} - línea encontrada o null
  */
 export function encontrarLineaCorrespondiente(datosCaja, lineas) {
-  const proQR = String(datosCaja.Pro).toUpperCase().trim()
-  
-  // Buscar por CSG
-  const linea = lineas.find(l => 
-    String(l.csg).toUpperCase().trim() === proQR
+  const proQR = String(datosCaja.Pro || '').toUpperCase().trim()
+  const fpQR  = String(datosCaja.FP  || '').toUpperCase().trim()
+  const cuaQR = String(datosCaja.Cua || '').toUpperCase().trim()
+
+  // Prioridad 1: CSG + FechaPack + SDP (coincidencia exacta)
+  let linea = lineas.find(l =>
+    String(l.csg).toUpperCase().trim()       === proQR &&
+    String(l.fechaPack).toUpperCase().trim() === fpQR  &&
+    String(l.sector).toUpperCase().trim()    === cuaQR
   )
+
+  // Prioridad 2: CSG + SDP (misma bodega, fecha distinta → anomalía de fecha)
+  if (!linea) {
+    linea = lineas.find(l =>
+      String(l.csg).toUpperCase().trim()    === proQR &&
+      String(l.sector).toUpperCase().trim() === cuaQR
+    )
+  }
+
+  // Prioridad 3: solo CSG (fallback genérico)
+  if (!linea) {
+    linea = lineas.find(l =>
+      String(l.csg).toUpperCase().trim() === proQR
+    )
+  }
   
   return linea || null
 }
