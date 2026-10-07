@@ -132,16 +132,22 @@ export default function ScanPage() {
   const intentarFinalizar = () => {
     if (!folio) return
     const resumen = obtenerResumenPorCSG()
-    const faltantes = Object.values(resumen).filter(
-      item => item.cajasEscaneadas + (item.cajasAsignadas || 0) < item.cajasDeclaradas
-    ).map(item => ({
+    // Las cajas con etiqueta ajena al folio ya están en el pallet: cubren faltantes y no requieren justificación
+    let ajenas = Object.values(cajasEscaneadas).filter(c => !c.lineaAsignada).length
+    const faltantes = Object.values(resumen).map(item => {
+      let falta = item.cajasDeclaradas - item.cajasEscaneadas - (item.cajasAsignadas || 0)
+      const cubiertas = Math.min(Math.max(falta, 0), ajenas)
+      ajenas -= cubiertas
+      falta -= cubiertas
+      return { item, falta }
+    }).filter(({ falta }) => falta > 0).map(({ item, falta }) => ({
       _clave: item._clave,
       csg: item.csg,
       productor: item.productor,
       fechaPack: item.fechaPack,
       cajasDeclaradas: item.cajasDeclaradas,
       cajasEscaneadas: item.cajasEscaneadas,
-      faltantes: item.cajasDeclaradas - item.cajasEscaneadas - (item.cajasAsignadas || 0),
+      faltantes: falta,
     }))
 
     if (faltantes.length > 0 && Object.keys(cajasAsignadas).length === 0) {
