@@ -80,6 +80,10 @@ export default function ScanPage() {
       if (!linea) {
         // Mensaje específico: CGS no encontrado en el folio
         const csgEscaneado = datosQR.Pro || 'desconocido'
+        // Se registra igual para que aparezca en el resumen físico del reporte
+        registrarCajaEscaneada(datosQR, null, [
+          { campo: 'csg', valorPlanilla: '(no está en el folio)', valorQR: csgEscaneado },
+        ])
         setMensajeError(`CGS "${csgEscaneado}" no encontrado en el folio`)
         setResultadoUltimo('error')
         return false

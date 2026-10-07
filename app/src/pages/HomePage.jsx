@@ -4,6 +4,8 @@ import { useLoteStore } from '../store/useLoteStore'
 import WedgeScanner from '../components/WedgeScanner'
 import { parsearExcelSAG } from '../utils/excelParser'
 import { fetchLotes, crearLote, tieneBackend } from '../utils/api'
+import { compararLote } from '../utils/resumenLote'
+import { generarReporteLotePDF } from '../utils/reporteLotePdf'
 
 const VISTA = {
   PRINCIPAL: 'principal',
@@ -22,8 +24,8 @@ export default function HomePage() {
     obtenerLotesBatch,
     iniciarRevision,
     foliosRevisados,
+    lotes,
     resetear,
-    obtenerReporteConsolidado,
     loteSeleccionadoId,
     setLoteSeleccionadoId,
   } = useLoteStore()
@@ -135,21 +137,6 @@ export default function HomePage() {
               </div>
             </div>
           </button>
-
-          {/* Reporte */}
-          {hayRevisados && (
-            <div className="bg-green-50 rounded-2xl border-2 border-green-300 p-4">
-              <p className="text-sm font-semibold text-green-800 mb-2">
-                ✅ {foliosRevisados.length} folio(s) revisado(s) en esta sesión
-              </p>
-              <button
-                onClick={() => navigate('/report', { state: { reporte: obtenerReporteConsolidado() } })}
-                className="w-full bg-green-600 text-white font-bold rounded-xl py-3 active:bg-green-700"
-              >
-                📊 Generar Reporte Consolidado
-              </button>
-            </div>
-          )}
 
           <button
             onClick={() => navigate('/reportes-revision')}
@@ -384,15 +371,6 @@ export default function HomePage() {
                 ))}
             </div>
           )}
-
-          {hayRevisados && (
-            <button
-              onClick={() => navigate('/report', { state: { reporte: obtenerReporteConsolidado() } })}
-              className="w-full bg-green-600 text-white font-bold rounded-xl py-3 active:bg-green-700 shadow"
-            >
-              📊 Generar Reporte Consolidado
-            </button>
-          )}
         </div>
       </div>
     )
@@ -484,10 +462,18 @@ export default function HomePage() {
           )}
 
           {foliosPend.length === 0 && (
-            <div className="bg-green-50 border-2 border-green-300 rounded-xl p-4 text-center">
-              <p className="text-2xl mb-2">✅</p>
-              <p className="font-bold text-green-800">Lote completamente revisado</p>
-            </div>
+            <>
+              <div className="bg-green-50 border-2 border-green-300 rounded-xl p-4 text-center">
+                <p className="text-2xl mb-2">✅</p>
+                <p className="font-bold text-green-800">Lote completamente revisado</p>
+              </div>
+              <button
+                onClick={() => generarReporteLotePDF(batch, compararLote(batch, lotes, foliosRevisados))}
+                className="w-full bg-blue-600 text-white font-bold rounded-xl py-3 active:scale-95"
+              >
+                📄 Descargar reporte PDF (documental vs físico)
+              </button>
+            </>
           )}
         </div>
       </div>

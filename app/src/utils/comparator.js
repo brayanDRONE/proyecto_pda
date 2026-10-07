@@ -69,7 +69,7 @@ const EQUIV_VARIEDAD = {
  * @param {'especie'|'variedad'} tipo
  * @returns {string}
  */
-function normalizarQR(valorQR, tipo) {
+export function normalizarQR(valorQR, tipo) {
   const v = String(valorQR || '').toUpperCase().trim()
   if (tipo === 'especie')   return EQUIV_ESPECIE[v]  || v
   if (tipo === 'variedad')  return EQUIV_VARIEDAD[v] || v
@@ -108,6 +108,9 @@ export function compararQRconPlanilla(datosQR, linea) {
     // Valor crudo del QR en mayúsculas
     const rawQR = String(datosQR[campoQR] || '').toUpperCase().trim()
 
+    // QR sin SDP solo se tolera si la planilla tampoco lo trae
+    if (campoPlanilla === 'sector' && !rawQR && !String(linea.sector || '').trim()) return
+
     // Normalizar abreviaturas según el campo
     let valorQR = rawQR
     if (campoPlanilla === 'especie')      valorQR = normalizarQR(rawQR, 'especie')
@@ -119,7 +122,7 @@ export function compararQRconPlanilla(datosQR, linea) {
       diferencias.push({
         campo: campoPlanilla,
         valorPlanilla: String(linea[campoPlanilla] || ''),
-        valorQR: String(datosQR[campoQR] || ''),
+        valorQR: String(datosQR[campoQR] || '') || 'Sin dato',
       })
     }
   })

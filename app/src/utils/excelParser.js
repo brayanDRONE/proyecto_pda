@@ -165,6 +165,7 @@ function agruparPorFolio(datosFilas, mapeo) {
         productor: obtener('productor'),
         provOrigen: obtener('provincia origen'),
         comunaOrigen: obtener('comuna origen'),
+        proceso: obtener('proceso'),
         csp: obtener('csp'),
         provPack: obtener('provincia pack'),
         comunaPack: obtener('comuna pack'),
