@@ -174,7 +174,8 @@ export const useLoteStore = create((set, get) => ({
       const cajasAsignadas = get().cajasAsignadas
       const hayDiferencias = Object.values(resumenCSG).some(r => r.estado !== 'OK')
       const hayAsignaciones = Object.keys(cajasAsignadas).length > 0
-      const estadoFinal = (hayDiferencias || hayAsignaciones)
+      const hayOtrasEtiquetas = Object.values(get().cajasEscaneadas).some(c => !c.lineaAsignada)
+      const estadoFinal = (hayDiferencias || hayAsignaciones || hayOtrasEtiquetas)
         ? 'revisado-con-observaciones'
         : 'revisado'
       set(state => ({

@@ -8,6 +8,7 @@
 
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { agruparFisico, describirFisico } from './resumenLote'
 
 // ─── Paleta de colores corporativa ───────────────────────────────────────────
 const AZUL     = [37, 99, 235]   // blue-600
@@ -42,8 +43,10 @@ function colorEstado(estado) {
  * @param {Object}  params.estadisticas   - Objeto estadísticas del store
  * @param {string}  params.observaciones  - Texto de observaciones (puede venir vacío)
  * @param {Object}  params.folioData      - Objeto folio completo (para datos del pallet)
+ * @param {Object}  params.cajasEscaneadas - QR escaneados (para la composición física)
+ * @param {Object}  params.cajasAsignadas  - Cajas sin QR con su motivo
  */
-export function generarReportePDF({ folio, resumenCSG, estadisticas, observaciones = '', folioData }) {
+export function generarReportePDF({ folio, resumenCSG, estadisticas, observaciones = '', folioData, cajasEscaneadas = {}, cajasAsignadas = {} }) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' })
 
   const pageW  = doc.internal.pageSize.getWidth()
@@ -180,46 +183,92 @@ export function generarReportePDF({ folio, resumenCSG, estadisticas, observacion
 
   y = doc.lastAutoTable.finalY + 8
 
-  // ── 5. Composición del pallet (folio documental) ────────────────────────────
-  if (folioData?.lineas?.length > 0) {
-    // Verificar si hay espacio suficiente, si no → nueva página
-    if (y > 220) { doc.addPage(); y = 20 }
+  // ── 5. Composición del pallet físico (QR escaneados) ────────────────────────
+  const lineasDoc = folioData?.lineas || []
+  const grupos = agruparFisico(cajasEscaneadas).map(g => ({ ...g, ...describirFisico(g, lineasDoc) }))
+  const asignadasFilas = Object.entries(cajasAsignadas || {})
+    .filter(([, asig]) => (asig?.cantidad || 0) > 0)
+    .map(([clave, asig]) => ({ linea: resumenCSG?.[clave], ...asig }))
+  const otrasCajas = grupos.filter(g => !g.coincide).reduce((s, g) => s + g.cajas, 0)
+
+  if (grupos.length > 0 || asignadasFilas.length > 0) {
+    if (y > 200) { doc.addPage(); y = 20 }
 
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(11)
     doc.setTextColor(...AZUL_OSC)
-    doc.text('COMPOSICIÓN DEL PALLET (FOLIO DOCUMENTAL)', margin, y)
+    doc.text('COMPOSICIÓN DEL PALLET FÍSICO (QR ESCANEADOS)', margin, y)
     y += 2
+    if (otrasCajas > 0) {
+      doc.setFontSize(8)
+      doc.setTextColor(...ROJO)
+      doc.text(`${otrasCajas} caja(s) con datos distintos al detalle original (marcadas en rojo).`, margin, y + 4)
+      y += 5
+    }
 
-    const headDoc = [['CSG', 'Productor', 'Especie', 'Variedad', 'Fec. Pack', 'Sector', 'CSP', 'Cajas Decl.']]
-    const bodyDoc = folioData.lineas.map(l => [
-      l.csg || '—',
-      l.productor || '—',
-      l.especie || '—',
-      l.varComercial || '—',
-      l.fechaPack || '—',
-      l.sector || '—',
-      l.csp || '—',
-      l.cajasDeclaradas,
+    const headFis = [['CSG', 'Productor', 'Proceso', 'Especie', 'Variedad', 'Fec. Pack', 'SDP', 'CSP', 'Cajas', 'Observación']]
+    const bodyFis = [
+      ...grupos.map(g => [
+        g.csg || '—',
+        g.linea?.productor || 'No indicado en QR',
+        g.proceso || '—',
+        g.especie || '—',
+        g.variedad || '—',
+        g.fechaPack || '—',
+        g.sdp,
+        g.csp || '—',
+        g.cajas,
+        g.coincide ? 'Coincide con el detalle' : g.detalle,
+      ]),
+      ...asignadasFilas.map(a => [
+        a.linea?.csg || '—',
+        a.linea?.productor || '—',
+        '—',
+        a.linea?.especie || '—',
+        a.linea?.varComercial || '—',
+        a.linea?.fechaPack || '—',
+        a.linea?.sector || '—',
+        a.linea?.csp || '—',
+        a.cantidad,
+        `Sin QR: ${a.motivo}`,
+      ]),
+    ]
+    const totalFisico = bodyFis.reduce((s, r) => s + (Number(r[8]) || 0), 0)
+    bodyFis.push([
+      { content: 'TOTAL', colSpan: 8, styles: { halign: 'right', fontStyle: 'bold' } },
+      { content: String(totalFisico), styles: { fontStyle: 'bold', halign: 'center' } },
+      '',
     ])
 
     autoTable(doc, {
       startY: y + 2,
-      head: headDoc,
-      body: bodyDoc,
+      head: headFis,
+      body: bodyFis,
       margin: { left: margin, right: margin },
-      theme: 'striped',
-      styles: { fontSize: 7.5, cellPadding: 2, valign: 'middle' },
+      theme: 'grid',
+      styles: { fontSize: 7, cellPadding: 2, valign: 'middle' },
       headStyles: { fillColor: GRIS_OSC, textColor: BLANCO, fontStyle: 'bold', halign: 'center' },
       columnStyles: {
-        0: { cellWidth: 22, fontStyle: 'bold' },
-        1: { cellWidth: 35 },
-        2: { cellWidth: 18 },
-        3: { cellWidth: 22 },
-        4: { cellWidth: 18, halign: 'center' },
-        5: { cellWidth: 14, halign: 'center' },
-        6: { cellWidth: 18, halign: 'center' },
-        7: { cellWidth: 16, halign: 'center' },
+        0: { cellWidth: 17, fontStyle: 'bold' },
+        1: { cellWidth: 24 },
+        2: { cellWidth: 14, halign: 'center' },
+        3: { cellWidth: 23 },
+        4: { cellWidth: 23 },
+        5: { cellWidth: 16, halign: 'center' },
+        6: { cellWidth: 13, halign: 'center' },
+        7: { cellWidth: 13, halign: 'center' },
+        8: { cellWidth: 12, halign: 'center' },
+        9: { cellWidth: 32 },
+      },
+      didParseCell(data) {
+        if (data.section !== 'body') return
+        const g = grupos[data.row.index]
+        if (g && !g.coincide) {
+          data.cell.styles.fillColor = [254, 242, 242]
+          if (data.column.index === 9) data.cell.styles.textColor = ROJO
+        } else if (!g && data.row.index < grupos.length + asignadasFilas.length) {
+          data.cell.styles.fillColor = [255, 247, 237]
+        }
       },
     })
 

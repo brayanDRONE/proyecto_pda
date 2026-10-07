@@ -104,16 +104,17 @@ export function generarReporteLotePDF(batch, comparaciones) {
     autoTable(doc, {
       startY: y,
       margin: { left: margin, right: margin },
-      head: [[{ content: 'Resumen físico (QR escaneados)', colSpan: 8, styles: { halign: 'left', fillColor: AZUL } }],
-        ['CSG', 'Proceso', 'CSP', 'Especie', 'Fec. Pack', 'SDP', 'Cajas', 'Estado']],
+      head: [[{ content: 'Resumen físico (QR escaneados)', colSpan: 9, styles: { halign: 'left', fillColor: AZUL } }],
+        ['CSG', 'Proceso', 'CSP', 'Especie / Variedad', 'Fec. Pack', 'SDP', 'Cajas', 'Estado', 'Observaci?n']],
       body: [
         ...c.fisico.map(f => [
-          f.csg, f.proceso || '-', f.csp, f.especie, f.fechaPack, f.sdp, f.cajas,
+          f.csg, f.proceso || '-', f.csp, `${f.especie} / ${f.variedad || '-'}`, f.fechaPack, f.sdp, f.cajas,
           { content: f.estado, styles: { textColor: colorEstado(f.estado), fontStyle: 'bold' } },
+          f.estado === 'Coincide' ? '' : f.detalle,
         ]),
-        ...(c.asignadas ? [['Asignadas manualmente (sin etiqueta)', '', '', '', '', '', c.asignadas, '']] : []),
+        ...(c.asignadas ? [['Asignadas manualmente (sin etiqueta)', '', '', '', '', '', c.asignadas, '', '']] : []),
         [{ content: 'TOTAL', colSpan: 6, styles: { halign: 'right', fontStyle: 'bold' } },
-          { content: String(c.totalFis), styles: { fontStyle: 'bold' } }, ''],
+          { content: String(c.totalFis), styles: { fontStyle: 'bold' } }, '', ''],
       ],
       styles: { fontSize: 7.5, cellPadding: 1.5 },
       headStyles: { fillColor: GRIS },

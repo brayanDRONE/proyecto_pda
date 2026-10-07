@@ -8,7 +8,7 @@ const norm = (v) => String(v ?? '').toUpperCase().trim()
  * Agrupa las cajas escaneadas por CSG + Proceso + CSP + Especie + Fec.Pack + SDP.
  * Los datos de productor/provincia/comuna no vienen en el QR, por eso no se incluyen.
  */
-function agruparFisico(cajasEscaneadas) {
+export function agruparFisico(cajasEscaneadas) {
   const grupos = new Map()
   Object.values(cajasEscaneadas || {}).forEach(({ datosQR: q }) => {
     if (!q) return
@@ -17,6 +17,7 @@ function agruparFisico(cajasEscaneadas) {
       proceso: q.NProc || '',
       csp: q.Fri || '',
       especie: q.Esp ? normalizarQR(q.Esp, 'especie') : '',
+      variedad: (q.Var || q.VEti) ? normalizarQR(q.Var || q.VEti, 'variedad') : '',
       fechaPack: q.FP || '',
       sdp: q.Cua || SIN_SDP,
     }
@@ -41,6 +42,32 @@ function coincide(fis, doc) {
   )
 }
 
+/**
+ * Explica por qué un grupo físico no calza con el detalle del folio.
+ * @returns {{coincide: boolean, detalle: string, linea: Object|null}}
+ */
+export function describirFisico(fis, lineas) {
+  const exacta = lineas.find(l => coincide(fis, l))
+  if (exacta) return { coincide: true, detalle: 'Coincide con el detalle', linea: exacta }
+
+  const mismas = lineas.filter(l => norm(l.csg) === norm(fis.csg))
+  if (mismas.length === 0) {
+    return { coincide: false, detalle: 'CSG no está en el detalle del folio', linea: null }
+  }
+
+  const sdpFis = fis.sdp === SIN_SDP ? '' : norm(fis.sdp)
+  const difs = (l) => {
+    const d = []
+    if (sdpFis !== norm(l.sector)) d.push(`SDP (detalle: ${l.sector || 'sin SDP'})`)
+    if (norm(fis.fechaPack) !== norm(l.fechaPack)) d.push(`Fec. Pack (detalle: ${l.fechaPack || '-'})`)
+    if (norm(fis.csp) !== norm(l.csp)) d.push(`CSP (detalle: ${l.csp || '-'})`)
+    if (norm(fis.especie) !== norm(l.especie)) d.push(`Especie (detalle: ${l.especie || '-'})`)
+    if (fis.proceso && l.proceso && norm(fis.proceso) !== norm(l.proceso)) d.push(`Proceso (detalle: ${l.proceso})`)
+    return d
+  }
+  const mejor = mismas.map(l => ({ l, d: difs(l) })).sort((a, b) => a.d.length - b.d.length)[0]
+  return { coincide: false, detalle: `Difiere en ${mejor.d.join(', ')}`, linea: mejor.l }
+}
 /**
  * Cruce documental vs físico de un folio revisado.
  * @param {Object} lote     - folio de la planilla ({ folio, lineas, totalDeclarado })
@@ -68,7 +95,9 @@ export function compararFolio(lote, revision) {
 
   fisico.forEach(f => {
     const doc = documental.find(d => coincide(f, d))
-    f.estado = doc ? 'Coincide' : 'No corresponde'
+    const desc = describirFisico(f, lineas)
+    f.detalle = desc.detalle
+    f.estado = desc.coincide ? 'Coincide' : 'No corresponde'
     if (doc) doc.cajasFisicas = (doc.cajasFisicas || 0) + f.cajas
   })
   documental.forEach(d => {

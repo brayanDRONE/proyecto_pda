@@ -199,6 +199,8 @@ export default function ScanPage() {
       estadisticas: estadisticasFinal || {},
       observaciones,
       folioData: folio,
+      cajasEscaneadas,
+      cajasAsignadas,
     })
   }
 

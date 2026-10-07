@@ -8,13 +8,20 @@ import { useState } from 'react'
  *   onConfirmar - (asignaciones) => void — { _clave: { cantidad, motivo } }
  *   onCancelar  - () => void
  */
+export const MOTIVOS = [
+  'Falta etiqueta',
+  'Caja en mal estado',
+  'Tapada por folio',
+  'QR en mal estado (verificado visual)',
+]
+
 export default function AsignarFaltantesModal({ faltantes = [], onConfirmar, onCancelar }) {
   const [asignaciones, setAsignaciones] = useState(() => {
     const init = {}
     faltantes.forEach(f => {
       // Usar _clave (compuesta) si está disponible, fallback a csg
       const key = f._clave || f.csg
-      init[key] = { cantidad: f.faltantes, motivo: 'Etiqueta ausente/dañada', incluir: true }
+      init[key] = { cantidad: f.faltantes, motivo: MOTIVOS[0], incluir: true }
     })
     return init
   })
@@ -62,7 +69,7 @@ export default function AsignarFaltantesModal({ faltantes = [], onConfirmar, onC
         {/* Contenido */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           <p className="text-sm text-gray-600">
-            Puedes asignarlas como <strong>etiqueta ausente o dañada</strong> para cerrar la revisión.
+            Indica el <strong>motivo</strong> de cada caja sin escanear para cerrar la revisión.
             El reporte indicará el motivo.
           </p>
 
@@ -111,10 +118,7 @@ export default function AsignarFaltantesModal({ faltantes = [], onConfirmar, onC
                     onChange={e => cambiarMotivo(key, e.target.value)}
                     className="w-full text-sm border border-orange-300 rounded-lg px-2 py-1.5 bg-white"
                   >
-                    <option>Etiqueta ausente/dañada</option>
-                    <option>Caja sin etiqueta por error de línea</option>
-                    <option>Etiqueta ilegible por humedad</option>
-                    <option>Caja en mal estado físico</option>
+                    {MOTIVOS.map(m => <option key={m}>{m}</option>)}
                   </select>
                 )}
               </div>
